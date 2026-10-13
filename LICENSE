@@ -1,0 +1,57 @@
+MQD Free Use and Non-Sale License 1.0
+
+Copyright (c) 2026 amanter-Zthen and the respective contributors.
+
+1. Scope
+This license applies to the original MQD software, source code, binaries,
+documentation and other material distributed under this license (the
+"Software"). It does not license third-party products, SDKs or trademarks.
+You receive a license to the Software, not ownership of it.
+
+2. Permitted use
+You may use, study, copy and modify the Software, free of charge, for personal,
+educational, professional and commercial production work. This expressly
+includes paid commissions, use within a company, and creating or selling
+models, artwork, assets, renders and other output. Such output is not subject
+to this license merely because the Software was used to create it.
+
+3. Free redistribution
+You may redistribute the original Software or modified versions without
+charging recipients for the Software, access to it, or its distribution.
+Redistributions must include this license and retain applicable copyright
+notices. Mark modified versions clearly and describe the changes so that they
+are not mistaken for an official upstream release. Downstream recipients
+must receive the same permissions and conditions for the covered Software.
+
+4. Non-sale condition
+You may not sell, rent or charge a subscription or other fee for the Software
+or a modified version, or condition access or distribution on a payment.
+You may not incorporate the Software or its code into a paid plugin or a
+paid software product. These limits apply to monetizing the Software itself,
+not to the commercial production work and output expressly allowed above.
+Other arrangements require separate permission from the relevant copyright
+holders.
+
+5. Feedback and contributions
+Users are encouraged to send bug reports, suggestions, modification details
+and improvements to the upstream GitHub project. Feedback, public disclosure
+of private modifications, and upstream pull requests are voluntary and are
+not prerequisites for permitted use. Do not submit private or third-party
+material without permission. An intentional contribution submitted for
+inclusion is offered under this license unless explicitly agreed otherwise;
+contributors retain ownership of their contributions. This clause does not
+authorize automatic collection or upload of user data.
+
+6. Warranty and liability
+To the extent permitted by applicable law, the Software is provided "AS IS",
+without warranty of any kind, express or implied, including merchantability,
+fitness for a particular purpose and noninfringement. To the extent permitted
+by applicable law, the authors and contributors are not liable for claims,
+damages or other liability arising from the Software or its use.
+
+7. Compliance
+The permissions in this license depend on compliance with its conditions.
+Rights not expressly granted are reserved. This is a custom source-available
+license with restrictions on sale and paid incorporation, not an OSI-approved
+open-source license. LICENSE.zh-CN.txt provides a Chinese explanation; this
+English text is the controlling license.

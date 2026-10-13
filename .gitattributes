@@ -1,0 +1,4 @@
+# Preserve the verified runtime bytes and release hashes across clones.
+* -text
+*.dlx binary
+*.mzp binary
