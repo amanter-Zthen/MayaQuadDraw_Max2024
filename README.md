@@ -1,10 +1,14 @@
 # MayaQuadDraw_Max2024
 
+[中文](README.md) · [English](README.en.md) · [下载最新版](https://github.com/amanter-Zthen/MayaQuadDraw_Max2024/releases/latest) · [安装说明](docs/INSTALL.md) · [常见问题](docs/FAQ.md) · [反馈问题](https://github.com/amanter-Zthen/MayaQuadDraw_Max2024/issues/new/choose)
+
 **MQD多边形绘制**是一款适用于 Windows 上 Autodesk 3ds Max 2024 的多边形绘制与重拓扑插件。它参考 Maya 的操作方式，将 Max 原本分散的四个多边形绘制模块整合为统一工具。
 
 制作这款插件的初衷，是减少工具切换和零散操作，让操作者在绘制多边形时，既拥有简洁的操作方式，也能保持连贯的创作思路，将注意力更多地放在模型本身。
 
 插件支持在参考模型表面打点、预览补面，并进行点、边、面的调整。
+
+**Maya-style polygon drawing and manual retopology for 3ds Max 2024.** MQD brings separate PolyDraw operations into one continuous surface-modeling workflow: place vertices, preview and create faces, move components, extend borders, and relax geometry. It is an interactive drawing tool, not an automatic remesher. [English guide](README.en.md).
 
 这是项目的第一个公开版本 **v1.0.0**。欢迎免费使用，也欢迎把遇到的问题、使用建议和代码改进提交回来，一起把这个工具做得更顺手。
 
@@ -12,7 +16,16 @@
 
 ## 下载与安装
 
-从 [Releases](https://github.com/amanter-Zthen/MayaQuadDraw_Max2024/releases) 下载对应版本的 `.mzp` 安装包。开发者可以克隆整个仓库；源码 ZIP 与安装包用途不同。
+**普通使用者：[打开最新发行版，下载 `.mzp` 安装包](https://github.com/amanter-Zthen/MayaQuadDraw_Max2024/releases/latest)。** 开发者可以克隆整个仓库；GitHub 自动提供的 Source code ZIP 是源码归档，不是直接拖入 Max 的 MZP 安装包。
+
+| 项目 | 当前支持范围 |
+|---|---|
+| 宿主 | Autodesk 3ds Max 2024，64 位 |
+| 系统 | Windows |
+| 用途 | 多边形绘制、手动重拓扑、参考表面上的几何调整 |
+| 工作网格 | Editable Poly，参考表面为另一个对象 |
+| 界面与验收 | 中文参数界面，交互测试使用中文 Max |
+| 许可 | 允许商业制作使用；插件本身及修改版禁止售卖 |
 
 1. 保存场景。升级时先退出并重新打开 Max，暂时不要启动 MQD，确保旧原生插件尚未加载。
 2. 把 `.mzp` 拖入 Max 视口，按提示安装，再重启 Max。
@@ -38,6 +51,14 @@
 | 右键或退出当前工具 | 结束 MQD，恢复进入前的相关状态 |
 
 四边面采用一组最近四点的判断方式。这组点不能构成合格面时不显示候选，移动鼠标后再计算。预览与点击提交使用同一组点和确定的点序，同时检查重复面、共享边、朝向与局部穿插。
+
+## 常见问题
+
+**Max 能否用类似 Maya Quad Draw 的方式绘制多边形？** MQD 的目标就是把原生 PolyDraw 中分散的打点补面、移动调整、边界延展和松弛等操作整合为连续工作流程，减少切换。它是 Max 插件，不是 Maya 插件，也不要求安装 Maya。
+
+**这是自动重拓扑工具吗？** 不是。MQD 由操作者决定点的位置与拓扑走向；Shift 提供局部候选预览和建面，不会自动为整个模型重新布线。
+
+更多兼容性、商业用途、安装和显示问题，见[中英文 FAQ](docs/FAQ.md)。
 
 ## 版本与验证
 

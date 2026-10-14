@@ -8,7 +8,7 @@ $version=(Get-Content -LiteralPath (Join-Path $repo 'VERSION') -Raw).Trim()
 $archivePath=Join-Path $OutputDirectory ("MayaQuadDraw_Max2024_v$version.mzp")
 $checksumPath=Join-Path $OutputDirectory ("MayaQuadDraw_Max2024_v$version.sha256")
 if((Test-Path -LiteralPath $archivePath) -or (Test-Path -LiteralPath $checksumPath)){throw 'Release output exists. Use a new version/output directory; published artifacts stay unchanged.'}
-$files=@('VERSION','LICENSE','LICENSE.zh-CN.txt','README.md','CONTRIBUTING.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','mzp.run','Install_MayaQuadDraw_Max2024.ms','Uninstall_MayaQuadDraw_Max2024.ms','macro/MayaQuadDraw_Max2024.mcr','startup/MayaQuadDraw_Max2024_Startup.ms','docs/INSTALL.md','docs/BUILD.md','docs/TESTING.md')
+$files=@('VERSION','LICENSE','LICENSE.zh-CN.txt','README.md','README.en.md','CONTRIBUTING.md','CHANGELOG.md','THIRD_PARTY_NOTICES.md','mzp.run','Install_MayaQuadDraw_Max2024.ms','Uninstall_MayaQuadDraw_Max2024.ms','macro/MayaQuadDraw_Max2024.mcr','startup/MayaQuadDraw_Max2024_Startup.ms','docs/INSTALL.md','docs/BUILD.md','docs/TESTING.md','docs/FAQ.md')
 foreach($folder in @('runtime','plugins')) {
     $allowed=if($folder -eq 'runtime'){@('.ms')}else{@('.dlx')}
     foreach($file in Get-ChildItem -LiteralPath (Join-Path $repo ('payload/MayaQuadDraw_Max2024/'+$folder)) -File | Where-Object {$_.Extension -in $allowed}) {

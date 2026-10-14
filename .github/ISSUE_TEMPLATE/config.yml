@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 常见问题 / FAQ
+    url: https://github.com/amanter-Zthen/MayaQuadDraw_Max2024/blob/main/docs/FAQ.md
+    about: 安装、版本、用途和许可 / Installation, versions, use and licensing
+  - name: 下载正式版本 / Download a release
+    url: https://github.com/amanter-Zthen/MayaQuadDraw_Max2024/releases/latest
+    about: 获取 MZP 安装包和校验文件 / Get the MZP installer and checksums
