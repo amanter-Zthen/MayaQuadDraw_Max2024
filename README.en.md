@@ -46,6 +46,37 @@ Use a scene copy for initial checks. The v1.0.0 installer has static/package val
 
 Quad creation chooses one nearest-four set. If that set fails the geometry/topology checks, it produces no preview rather than substituting a more distant combination. Commit revalidates the displayed IDs and prepared winding. Additional checks cover surface layers, duplicate faces, occupied edges, local crossings and the final face direction.
 
+## Workflow examples and practical benefits
+
+MQD brings a **Maya-inspired, continuous drawing workflow to an existing Max scene**: place points, inspect a preview, create a face, adjust components and extend the mesh. Its gestures and face-creation rules are adapted to Max, rather than being a one-to-one copy of Maya.
+
+### Inspect the connection before creating a quad
+
+![MQD quad preview in 3ds Max 2024: a cyan outline connects four highlighted vertices above the existing blue mesh on a gray reference surface](docs/images/quad-preview.png)
+
+Hold **Shift** and hover to inspect the candidate outline and its four corners, then click to create the face. Release Shift to continue placing points or dragging vertices, edges and faces. The intended benefit is fewer tool changes while deciding the next part of the topology.
+
+### Fill a closed triangle hole without leaving the tool
+
+**Before:** three existing edges enclose a triangular gap.
+
+![Before triangle-hole filling: three existing edges surround a gap in the blue retopology mesh](docs/images/triangle-hole-before.png)
+
+**After:** hold **Shift** over the hole, inspect the candidate and click to fill it, then continue drawing. This operation requires a closed three-edge hole; it does not create a triangle from any three loose points.
+
+![After triangle-hole filling: a new triangular face closes the gap in the blue mesh](docs/images/triangle-hole-after.png)
+
+These are actual-use screenshots with a slight viewpoint change between the before/after images. They illustrate preview and fill behavior, not interaction-speed benchmarks.
+
+### What MQD adds to a Max workflow
+
+- **Less switching:** common point placement, component adjustment and boundary extension operations share one interaction workflow.
+- **Feedback before committing:** component highlighting and a Shift candidate preview show the intended connection. Commit revalidates the same vertex set.
+- **Native surface controls:** Max PolyDraw's numeric **Offset** remains available for drawing at a distance from the reference surface, alongside the existing Pick workflow.
+- **Max-oriented candidate rules:** an invalid nearest-four set produces no candidate instead of a substitute using more distant points; additional checks cover orientation, duplicate faces and local crossings.
+
+Surface offset is **not exclusive to MQD**: Maya Quad Draw also has Surface Offset. Previewing faces and filling triangular holes are Maya-inspired workflow features, not claims of invention. MQD is not a complete replacement for Maya Quad Draw, and Relax feel still has room for improvement. See the [bilingual workflow comparison](docs/WORKFLOW_COMPARISON.md) for trade-offs, official references and implementation pointers.
+
 ## Versions and validation
 
 The first public product release is **v1.0.0**. Its native bridge identifies as `0.17.6-max2024-v16-unified-stepbuild`; the Relax implementation is `0.20.0-max2024-sdk-paint-deform-dense-stroke`. Product and internal implementation version numbers serve different purposes.
