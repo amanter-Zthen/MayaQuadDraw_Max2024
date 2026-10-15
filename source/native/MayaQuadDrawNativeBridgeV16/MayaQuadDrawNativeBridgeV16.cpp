@@ -13,7 +13,7 @@
 #define MQD_NATIVE_BRIDGE_CLASS_ID_B 0x3f157b47
 #define MQD_NATIVE_BRIDGE_CLASS_NAME _T("Maya Quad Draw Native Bridge V16")
 #define MQD_NATIVE_BRIDGE_DESCRIPTION _T("Maya Quad Draw V16 native visibility and input bridge for 3ds Max 2024")
-#define MQD_NATIVE_BRIDGE_VERSION_STRING _T("0.17.8-max2024-v16-session-lifecycle")
+#define MQD_NATIVE_BRIDGE_VERSION_STRING _T("0.17.9-max2024-v16-settings-tab")
 #include "../MayaQuadDrawNativeBridgeV15/MayaQuadDrawNativeBridgeV15.cpp"
 
 namespace

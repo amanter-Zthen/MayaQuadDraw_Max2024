@@ -1,0 +1,50 @@
+MQD local candidate: independent native AutoWeld Undo
+Date: 2026-10-15
+Runtime: 1.0.0-max2024-v20-weldundo1
+Base commit: bc469e5459b94157441ebbac21ec9e7b5fad5aba
+Record type: historical candidate evidence, retained with its original scope.
+Follow-up: user accepted the focused real-pointer weld trial; the two-step
+implementation is included in v1.1.0. Earlier pending statements below describe
+the API-test stage, not a claim of universal interactive acceptance.
+
+User-approved behavior
+- One drag that also welds creates TWO normal native history steps.
+- First Undo restores the welded-away vertex/topology, keeping the moved position.
+- Second Undo restores the preceding move.
+- Redo reverses that sequence. An ordinary drag without welding remains one step.
+- The user withdrew the one-step grouping request; no SuperHold grouping was added.
+
+Implementation
+- Move/pick thresholds, native Move delegation and candidate filtering are unchanged.
+- tryAutoWeld selects the same target, then calls commitAutoWeldTarget.
+- A named MAXScript undo-on context covers the native polyOp.weldVerts operation.
+- It runs only after existing native Hold/SuperHold has ended, while not suspended,
+  disabled, restoring or redoing. Unsupported history contexts skip the weld
+  without forcing Resume/EnableUndo or touching someone else's transaction.
+- Rejected geometry or an exception cancels this weld's own native record.
+- Last transaction states are logged; native DLLs are unchanged.
+- No geometry snapshots or custom Restore implementation were added to runtime.
+
+Evidence and limits
+- Max 2024.2 main-thread tests: 96/0 geometry assertions covering Bare, TurboSmooth,
+  OpenSubdiv and nonuniform transform fixtures, low/high index deletion, Undo x2
+  and Redo x2. Ordered face/edge topology, positions and available map data compared.
+- Separate 63/0 guard/context assertions: suspended/foreign history refused,
+  invalid/internal pair rejected, MQD active/explicitly exited/upper-modifier exit.
+- These tests call native geometry interfaces and the candidate commit helper.
+  The move in the API fixture is a separately undoable polyop.setVert, NOT a
+  simulated real PolyDraw mouse stroke. Actual release timing/feel is pending.
+- Main scene objects were snapshotted and remained unchanged; added fixtures
+  affect normal test history. No history flush, scene reload or process restart.
+- Exploratory negative controls demonstrated that neither manual Begin/Accept
+  nor a nested undo-on overrides an outer suspended undo-off context. Those
+  failure results are retained privately; their test Undo guards stopped before
+  replaying an unrelated record. This is not a claim that the original real
+  gesture ran under undo-off; that exact callback context was not captured.
+- Previous session3 automatic pass counts did not cover real Move+AutoWeld Undo.
+  Its actual manual failure remains documented and is not erased by these tests.
+
+Delivery boundary
+- Source runtime is loaded locally for a clean manual trial.
+- Installed files and native binaries remain unchanged. No MZP/GitHub release.
+- No license/account/network settings are part of this work.

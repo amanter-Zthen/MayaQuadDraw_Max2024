@@ -48,6 +48,7 @@
     <ClCompile Include="MayaQuadDrawNativeBridgeV16.cpp" />
     <ClInclude Include="VisibilityDepthMath.h" />
     <ClInclude Include="StepBuildCandidateRules.h" />
+    <ClInclude Include="..\MayaQuadDrawNativeBridgeV15\SettingsTabPolicy.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="MayaQuadDrawNativeBridgeV16.def" />

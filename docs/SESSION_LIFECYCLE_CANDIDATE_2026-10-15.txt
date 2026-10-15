@@ -1,6 +1,13 @@
 MQD local candidate: session lifecycle and warm activation
 Date: 2026-10-15
-Status: local development candidate, not an installed/released update.
+Record type: historical local development candidate, not the final release
+acceptance record. Later weld and Tab follow-ups are incorporated in v1.1.0;
+the session3 failure and original scope below are deliberately preserved.
+
+Manual follow-up: session3 FAILED a real native Move + AutoWeld -> exit -> Undo
+test on 2026-10-15. Its automatic counts below cover only their original cases.
+See AUTOWELD_UNDO_CANDIDATE_2026-10-15.txt for the subsequent two-step native
+weld-history candidate; pointer acceptance remains pending.
 
 Identity
 - Runtime: 1.0.0-max2024-v20-session3

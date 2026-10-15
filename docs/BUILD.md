@@ -20,11 +20,13 @@
 mkdir -p test-build
 g++ -std=c++17 -Wall -Wextra -I source/native/MayaQuadDrawNativeBridgeV16 tests/native/stepbuild_candidate_tests.cpp -o test-build/stepbuild
 g++ -std=c++17 -Wall -Wextra -I source/native/MayaQuadDrawNativeBridgeV16 tests/native/visibility_depth_tests.cpp -o test-build/visibility
+g++ -std=c++17 -Wall -Wextra tests/native/settings_tab_tests.cpp -o test-build/settings-tab
 ./test-build/stepbuild
 ./test-build/visibility
+./test-build/settings-tab
 ```
 
-预期分别通过 121 项和 71 项。原生 Max DLX 本身仍使用 Windows SDK 工具链构建。
+预期分别通过 121、71 和 138 项。原生 Max DLX 本身仍使用 Windows SDK 工具链构建。
 
 ## 校验与打包
 

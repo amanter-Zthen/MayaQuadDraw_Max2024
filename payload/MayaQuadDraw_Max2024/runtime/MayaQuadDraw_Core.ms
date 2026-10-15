@@ -1,5 +1,5 @@
 ﻿/*
-Maya Quad Draw 1.0 for 3ds Max 2024.
+Maya Quad Draw 1.1 for 3ds Max 2024.
 
     V16 owns the PBStartTrack channel, preserves the V15 input ABI, and adds
     Maya-style target-surface visibility filtering for hover and possible faces.
@@ -64,7 +64,7 @@ global MayaQuadDrawR16_PainterResume
 global MayaQuadDrawRootPath
 global MayaQuadDrawInstalledRuntimeVersion
 
-MayaQuadDrawInstalledRuntimeVersion = "1.0.0-max2024-v20-session3"
+MayaQuadDrawInstalledRuntimeVersion = "1.1.0-max2024"
 
 try (if MayaQuadDrawR6 != undefined and MayaQuadDrawR6.active do MayaQuadDrawR6.stopManual()) catch()
 
@@ -268,6 +268,7 @@ struct MayaQuadDrawR6State
     distanceType = 1,
     autoWeldCommits = 0,
     lastWeldTarget = 0,
+    lastWeldUndoTrace = #(),
     pointCommits = 0,
     moveCommits = 0,
     edgeMoveCommits = 0,
@@ -467,6 +468,19 @@ struct MayaQuadDrawR6State
         true
     ),
 
+    fn onSettingsTab token =
+    (
+        if not active or token != sessionToken or exitInProgress or historyPending or contextPending do return false
+        if not (hasSessionContext()) or not (ownsNativeCommand()) or not PBTrackGetToolActive() do return false
+        if moveGestureActive or borderGestureActive or relaxGestureActive do return false
+        if theHold.Holding() or theHold.IsSuspended() or theHold.RestoreOrRedoing() do return false
+        -- Display only: reuse the loaded floater/settings, without starting or
+        -- stopping any modeling tool or adding a geometry Undo record.
+        local result = MayaQuadDrawUI_Toggle()
+        appendLog ("settings.tab open=" + (MayaQuadDrawUI_IsOpen() as string))
+        result
+    ),
+
     fn onHostDeferred token flags ownsMode =
     (
         if not active or token != sessionToken or exitInProgress do return false
@@ -477,6 +491,7 @@ struct MayaQuadDrawR6State
             completeExit "host context changed" endNativeTrack:ownsMode restoreContext:false
         else
         (
+            local settingsRequested = flags == 4 and not historyPending and not contextPending
             if historyPending do
             (
                 invalidateRecognition "Host Undo/Redo settled"
@@ -489,6 +504,7 @@ struct MayaQuadDrawR6State
             )
             historyPending = false
             contextPending = false
+            if settingsRequested do onSettingsTab token
             true
         )
     ),
@@ -1003,39 +1019,79 @@ struct MayaQuadDrawR6State
         )
     ),
 
+    fn weldUndoState =
+    (
+        #(theHold.Holding(), theHold.IsSuspended(), theHold.GetBeginDepth(), theHold.SuperLevel(), theHold.GetGlobalPutCount())
+    ),
+
+    fn commitAutoWeldTarget movedVertex targetVertex screenDistance =
+    (
+        local beforeUndo = weldUndoState()
+        lastWeldUndoTrace = #(beforeUndo)
+        -- Move owns its native record. A released vertex weld owns a separate
+        -- record, so Undo first restores topology, then the preceding Move.
+        -- Respect another operation's Hold and a caller's suspended history.
+        if beforeUndo[1] or beforeUndo[2] or beforeUndo[3] != 0 or beforeUndo[4] != 0 or theHold.IsUndoDisabled() or theHold.RestoreOrRedoing() do
+        (
+            appendLog ("AutoWeld skipped: native Undo not idle state=" + (beforeUndo as string))
+            return #(false, targetVertex, screenDistance, false, "native Undo not idle")
+        )
+        if not isValidNode ownerNode or classOf ownerNode.baseObject != Editable_Poly do
+            return #(false, targetVertex, screenDistance, false, "invalid owner")
+        local beforeVerts = polyOp.getNumVerts ownerNode.baseObject
+        if movedVertex < 1 or movedVertex > beforeVerts or targetVertex < 1 or targetVertex > beforeVerts or movedVertex == targetVertex do
+            return #(false, targetVertex, screenDistance, false, "invalid vertex pair")
+        local dead = polyOp.getDeadVerts ownerNode.baseObject
+        if dead[movedVertex] or dead[targetVertex] do
+            return #(false, targetVertex, screenDistance, false, "dead vertex pair")
+        local targetWorld = MayaQuadDrawR1.getWorldVertex ownerNode targetVertex
+        local weldResult = false
+        local successValue = false
+        local exceptionText = "none"
+        undo "MQD Auto Weld" on
+        (
+            -- An outer undo-off context cannot be overridden by an inner undo-on.
+            -- Perform topology changes only while native Restore registration works.
+            if theHold.Holding() and not theHold.IsSuspended() then
+            (
+                try
+                (
+                    in coordsys world
+                    (
+                        weldResult = polyOp.weldVerts ownerNode.baseObject movedVertex targetVertex targetWorld node:ownerNode
+                    )
+                    update ownerNode
+                    successValue = (polyOp.getNumVerts ownerNode.baseObject) == beforeVerts - 1
+                    if not successValue do theHold.Cancel()
+                )
+                catch
+                (
+                    exceptionText = getCurrentException()
+                    successValue = false
+                    if theHold.Holding() do theHold.Cancel()
+                )
+            )
+            else exceptionText = "native Undo recording unavailable"
+        )
+        local afterVerts = polyOp.getNumVerts ownerNode.baseObject
+        append lastWeldUndoTrace (weldUndoState())
+        if successValue do
+        (
+            autoWeldCommits += 1
+            lastWeldTarget = targetVertex
+        )
+        appendLog ("AutoWeld source=" + (movedVertex as string) + " target=" + (targetVertex as string) +
+            " screenDistance=" + (screenDistance as string) + " result=" + (weldResult as string) +
+            " deltaV=" + ((afterVerts-beforeVerts) as string) + " exception=" + exceptionText +
+            " undo=" + (lastWeldUndoTrace as string))
+        #(successValue, targetVertex, screenDistance, weldResult, exceptionText)
+    ),
+
     fn tryAutoWeld movedVertex =
     (
         local targetInfo = findAutoWeldTarget movedVertex
-        local targetVertex = targetInfo[1]
-        local screenDistance = targetInfo[2]
-        if targetVertex <= 0 then #(false, 0, screenDistance, false, "none")
-        else
-        (
-            local beforeVerts = polyOp.getNumVerts ownerNode.baseObject
-            local targetWorld = MayaQuadDrawR1.getWorldVertex ownerNode targetVertex
-            local weldResult = false
-            local exceptionText = "none"
-            try
-            (
-                in coordsys world
-                (
-                    weldResult = polyOp.weldVerts ownerNode.baseObject movedVertex targetVertex targetWorld node:ownerNode
-                )
-            )
-            catch (exceptionText = getCurrentException())
-            update ownerNode
-            local afterVerts = polyOp.getNumVerts ownerNode.baseObject
-            local successValue = afterVerts == beforeVerts - 1
-            if successValue do
-            (
-                autoWeldCommits += 1
-                lastWeldTarget = targetVertex
-            )
-            appendLog ("AutoWeld source=" + (movedVertex as string) + " target=" + (targetVertex as string) +
-                " screenDistance=" + (screenDistance as string) + " result=" + (weldResult as string) +
-                " deltaV=" + ((afterVerts-beforeVerts) as string) + " exception=" + exceptionText)
-            #(successValue, targetVertex, screenDistance, weldResult, exceptionText)
-        )
+        if targetInfo[1] <= 0 then #(false, 0, targetInfo[2], false, "none")
+        else commitAutoWeldTarget movedVertex targetInfo[1] targetInfo[2]
     ),
 
     fn beginMoveGesture =
@@ -1976,7 +2032,7 @@ struct MayaQuadDrawR6State
             registrationReady = registrationReady and internalRelaxVersionFn != undefined and relaxBeginFn != undefined and relaxStepFn != undefined and relaxEndFn != undefined and relaxCancelFn != undefined and relaxStatusFn != undefined
             -- A session with old loaded DLLs must not mix evaluated-mesh and
             -- base-object adapters. Restart is required to activate new DLLs.
-            registrationReady = registrationReady and (try (v16VersionFn() == "0.17.8-max2024-v16-session-lifecycle") catch (false))
+            registrationReady = registrationReady and (try (v16VersionFn() == "0.17.9-max2024-v16-settings-tab") catch (false))
             registrationReady = registrationReady and (try (internalRelaxVersionFn() == "0.20.1-max2024-sdk-paint-deform-base-object") catch (false))
 
             appendLog ("plugin.load=" + (loadResult as string))
@@ -2113,7 +2169,7 @@ struct MayaQuadDrawR6State
                 appendLog ("tracker.active=" + (PBTrackGetToolActive() as string))
                 -- Settings are opened explicitly through the MQD Settings action.
                 completeRedraw()
-                    format "MQD 1.0 is active. Shift-drag over an internal component runs continuous Relax.\n"
+                    format "MQD 1.1.0 is active. Tab toggles settings in the drawing viewport.\n"
                 true
             )
             )
@@ -2187,6 +2243,6 @@ fn MayaQuadDrawR6_Stop =
     if MayaQuadDrawR6 != undefined then MayaQuadDrawR6.stopManual() else true
 )
 
-format "MQD 1.0 runtime loaded. Run MayaQuadDrawR6_Start().\n"
+format "MQD 1.1.0 runtime loaded. Run MayaQuadDrawR6_Start().\n"
 
 

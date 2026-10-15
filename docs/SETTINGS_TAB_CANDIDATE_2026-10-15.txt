@@ -1,0 +1,79 @@
+MQD local candidate: session-scoped Tab settings panel
+Date: 2026-10-15
+Record type: historical local-trial evidence, retained with its original scope.
+Follow-up: user reported the Tab trial works and approved v1.1.0 publication.
+The implementation is included in v1.1.0. Pending/delivery statements below
+describe the candidate stage; not every focus/gesture combination was observed.
+
+Request
+- Bare Tab, while MQD drawing is active, toggles the existing settings panel.
+- Parameters retain their values and the existing remembered window position.
+- Drawing remains the same session; opening settings does not reload MQD.
+- Outside MQD, Max retains its normal Tab. In parameter fields, normal Tab and
+  Shift+Tab remain available for navigating the fields.
+
+Identity
+- Runtime: 1.0.0-max2024-v20-tabpanel1
+- Bridge: 0.17.9-max2024-v16-settings-tab
+- Relax: 0.20.1-max2024-sdk-paint-deform-base-object, unchanged
+- Includes the accepted weldundo1 two-step native Move / AutoWeld behavior.
+- Geometry, welding, candidate face and subdivision algorithms are unchanged.
+
+Implementation
+- Reuses the existing input DLX and Windows thread-local WH_GETMESSAGE hook;
+  hook is registered for the current Max viewport/UI thread during SessionBegin.
+- It requires owned MQD command, active viewport and exact viewport input focus.
+- Bare Tab is consumed before accelerator/focus traversal; other keys pass on.
+- One toggle per press; repeat does not flicker. Rapid queued presses use parity.
+- During a drag or native Hold/restore, Tab does not interrupt the gesture.
+- The existing one-shot session timer performs the UI action after dispatch
+  unwinds. Generation, focus, history/context and gesture state are rechecked.
+- Coalesced context/history events take priority and discard the UI request.
+- On success, originating viewport focus is restored within the same Max root
+  window and owned session. Explicit field focus still permits ordinary Tab.
+- Exit removes this hook and pending state. No persistent/global key binding,
+  new service, Python dependency or alternate Undo engine is introduced.
+
+Verified before host loading
+- VS2019 / Max 2024 SDK Release x64 build succeeded.
+- C++ SettingsTabPolicy tests: 138 checks, 0 failures.
+- Static checks: Settings Tab 15; AutoWeld 12; UI lifecycle 14;
+  session lifecycle 21; subdivision adapter 15; all 0 failures.
+- Static bridge-version checks now compare Core to the actual native version
+  declaration instead of hardcoding the previous candidate's identity.
+- Tests/max/MQD_SettingsTabTest.ms provides UI callback/state checks on an
+  explicit MQD_TabTrial fixture. These are distinct from physical-key testing.
+
+Verified in the authorized new Max 2024 process
+- Main-thread API checks: 31 checks, 0 failures (23 UI callback/identity/history
+  assertions, 3 exit checks, 5 warm-reentry checks).
+- Four callback toggles preserved exact control-mesh geometry/connectivity,
+  Undo/Redo labels, native Put count, selected node, modifier stack entry,
+  subobject level, end-result state, session token and parameter values.
+- Stale generation and suspended-history UI requests were rejected.
+- Exit reported hook inactive; reentry reported hook active with a new token.
+- Final test fixture remains 16 vertices / 9 faces, MQD active, panel closed.
+- Physical Tab/focus behavior remains pending user acceptance. Direct callback
+  tests are not presented as proof that the real key reaches the native hook.
+- Two early harness-only errors (missing optional global lookup; a reserved
+  variable name in the test) were corrected before fixture editing began.
+  Their failed calls are retained in the private receipt.
+
+Required interactive acceptance
+1. Active drawing viewport: Tab opens, Tab closes; holding Tab does not flicker.
+2. Drawing, geometry, Undo/Redo and current modifier remain unchanged.
+3. Clicking a parameter field: Tab/Shift+Tab navigate fields normally.
+4. Return focus to viewport: Tab toggles again. Other Max editors retain Tab.
+5. Exit MQD or select an upper modifier: this shortcut is released.
+6. Reenter MQD: Tab works without restarting/reloading the tool.
+
+References (API contract, not a claim of Autodesk endorsing this binding)
+https://learn.microsoft.com/en-us/windows/win32/winmsg/getmsgproc
+https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowshookexw
+Local Max 2024 SDK maxapi.h and ViewExp::GetHWnd input-window documentation.
+
+Delivery
+- User closed the previous Max before local payload synchronization.
+- Source and the previous local payload backed up privately before editing.
+- Installed runtime files, release MZPs and remote GitHub remain unchanged.
+- New Max process or normal restart is required for a different loaded DLX.

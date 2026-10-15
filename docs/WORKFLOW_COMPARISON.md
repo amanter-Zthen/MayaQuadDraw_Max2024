@@ -10,7 +10,7 @@ MQD多边形绘制把常用的多边形绘制动作集中到 3ds Max 2024 的一
 
 ## 三者的取舍
 
-| 方面 | Maya Quad Draw | Max 原生 PolyDraw | MQD v1.0.0 的选择 |
+| 方面 | Maya Quad Draw | Max 原生 PolyDraw | MQD v1.1.0 的选择 |
 |---|---|---|---|
 | 绘制流程 | 一体化手动重拓扑工具，可预览和继续调整 [1][2] | Step Build、Extend、Optimize 等各有操作与组合键 [3] | 将常用操作合并，按鼠标位置和组合键切换动作，减少显式选工具 |
 | 四边面 | Shift 预览后提交 [1] | Step Build 提供最近四点建面及显式选点方式 [3] | 采用最近四点的规则，加上持续候选预览和提交前复核 |
@@ -18,7 +18,7 @@ MQD多边形绘制把常用的多边形绘制动作集中到 3ds Max 2024 的一
 | 三角洞 | 支持填补三角形空洞 [1] | 原生建面工具也有显式选点等路径 [3] | 在同一 Shift 补面流程中识别已有三边闭合的洞 |
 | 宿主与后续编辑 | 在 Maya 工作流中继续编辑 | 在 Max 原生工作流中继续编辑 | 在 Max 的 Editable Poly 上工作，无需为了使用这种绘制方式切换到 Maya |
 
-来源：[1] [Maya 创建多边形](https://help.autodesk.com/cloudhelp/2026/ENU/Maya-Modeling/files/GUID-5308DF0F-8E0F-4851-A203-491A597001AC.htm)；[2] [Maya Quad Draw 工具选项](https://help.autodesk.com/cloudhelp/2025/ENU/Maya-Modeling/files/GUID-35D650EE-C840-4E4B-8E5C-DC5FFE4DA53A.htm)；[3] [Max PolyDraw：添加几何与优化工具](https://help.autodesk.com/cloudhelp/2020/ENU/3DSMax-Modeling/files/GUID-3861007B-2549-4770-8E6F-AACC65DF50AE.htm)。官方页面说明各自工具行为；MQD 当前实现以本仓库 v1.0.0 代码为准。
+来源：[1] [Maya 创建多边形](https://help.autodesk.com/cloudhelp/2026/ENU/Maya-Modeling/files/GUID-5308DF0F-8E0F-4851-A203-491A597001AC.htm)；[2] [Maya Quad Draw 工具选项](https://help.autodesk.com/cloudhelp/2025/ENU/Maya-Modeling/files/GUID-35D650EE-C840-4E4B-8E5C-DC5FFE4DA53A.htm)；[3] [Max PolyDraw：添加几何与优化工具](https://help.autodesk.com/cloudhelp/2020/ENU/3DSMax-Modeling/files/GUID-3861007B-2549-4770-8E6F-AACC65DF50AE.htm)。官方页面说明各自工具行为；MQD 当前实现以本仓库 v1.1.0 代码为准。
 
 ## 真正增加的便利
 

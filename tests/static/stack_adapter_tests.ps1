@@ -19,7 +19,9 @@ Confirm 'Voluntary exit has a guarded stack restoration' ($core.Contains('modPan
 Confirm 'Edits base object' ($core.Contains('modPanel.setCurrentObject ownerNode.baseObject node:ownerNode'))
 Confirm 'Restores native end-result state' ($core.Contains('showEndResult = savedShowEndResult'))
 Confirm 'Suppresses final-mesh node ticks when stacked' ($core.Contains('ownerNode.vertexTicks = (ownerNode.modifiers.count == 0)'))
-Confirm 'Checks loaded native bridge identity' ($core.Contains('v16VersionFn() == "0.17.8-max2024-v16-session-lifecycle"'))
+$bridge = Get-Content -LiteralPath (Join-Path $repo 'source/native/MayaQuadDrawNativeBridgeV16/MayaQuadDrawNativeBridgeV16.cpp') -Raw
+$bridgeVersion = [regex]::Match($bridge, '#define MQD_NATIVE_BRIDGE_VERSION_STRING _T\("([^"]+)"\)').Groups[1].Value
+Confirm 'Checks loaded native bridge identity' ($bridgeVersion -ne '' -and $core.Contains('v16VersionFn() == "'+$bridgeVersion+'"'))
 Confirm 'Checks loaded Relax adapter identity' ($core.Contains('internalRelaxVersionFn() == "0.20.1-max2024-sdk-paint-deform-base-object"'))
 foreach ($relative in @('source/native/MayaQuadDrawNativeBridgeV15/MayaQuadDrawNativeBridgeV15.cpp','source/native/MayaQuadDrawInternalRelaxV20/MayaQuadDrawInternalRelaxV20.cpp')) {
     $s = Get-Content -LiteralPath (Join-Path $repo $relative) -Raw

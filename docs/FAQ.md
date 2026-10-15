@@ -26,6 +26,23 @@ MQD多边形绘制参考 Maya 的操作方式，把 Max 分散的四个多边形
 
 **Which download is the installer?** Use the `.mzp` release asset. The Source code archives are for developers. An already-loaded native plugin requires a Max restart before replacement.
 
+## 上层修改器支持哪些？没有列出的可以用吗？
+
+> [!WARNING]
+> **目前仅验证 Editable Poly 基础对象上方的 TurboSmooth（涡轮平滑）和 OpenSubdiv 常规路径。其他修改器、特殊模式和组合尚未测试。** 不建议保留未测上层修改器时到基础层使用 MQD；超范围可能造成显示异常、撤销错乱、崩溃或数据损坏。风险已提前告知；如仍尝试，请备份并自行承担后果。
+
+这里的 Editable Poly 指基础对象，不是宣称支持任意 Edit Poly 修改器堆栈。OpenSubdiv 的特殊 GPU 显示路径、所有参数和连续复杂修改器组合不在已验证范围。截图中的修改器快捷按钮不构成支持列表。
+
+**Which upper modifiers are supported?** Only the tested standard TurboSmooth and OpenSubdiv paths over an Editable Poly base object are validated. Other modifiers/combinations and special GPU modes are untested. Avoid editing underneath them with MQD. Back up first; crashes, broken history and data damage are possible outside the validated scope, at your own risk.
+
+## 参数窗在哪里？为什么自动焊接要撤销两次？
+
+v1.1.0 默认不弹出参数窗。在 MQD 绘制视口中按 **Tab** 开关面板，也可运行独立设置动作。参数框内部的 Tab 保持字段切换，退出 MQD 后恢复 Max 原有 Tab 行为。
+
+移动与自动焊接分成两条原生历史记录：**先撤焊接、再撤移动**。这是本版明确的操作方式，不做单步合并。普通未焊接的移动仍是一条记录；选择上层修改器或退出后再撤销，不会重新启动 MQD。
+
+**Where are settings, and why two Undo steps?** Press Tab in the active drawing viewport to toggle settings. Tab in fields keeps normal navigation. A drag plus AutoWeld records movement and welding separately: undo the weld first, then the move. Exiting or selecting another modifier does not get undone into an active MQD session.
+
 ## 可以拿它接单或者在公司使用吗
 
 可以。许可允许商业建模、接单、公司项目及出售自己制作的作品；限制的是插件本身或修改版的售卖、收费分发，以及把其代码并入收费插件/软件。完整条件见 [LICENSE](../LICENSE) 和[中文说明](../LICENSE.zh-CN.txt)。

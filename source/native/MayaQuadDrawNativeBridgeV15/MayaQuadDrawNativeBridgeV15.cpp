@@ -8,6 +8,7 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <commctrl.h>
+#include "SettingsTabPolicy.h"
 
 #include <guplib.h>
 #include <maxapi.h>
@@ -56,6 +57,10 @@ namespace
     bool g_sessionCommandLost = false;
     UINT_PTR g_sessionTimerId = 0;
     int g_sessionPendingFlags = 0;
+    constexpr int kSettingsTabRequest = 4;
+    HHOOK g_settingsTabHook = nullptr;
+    mqd::SettingsTabKeyState g_settingsTabKey;
+    bool g_settingsTabPendingToggle = false;
     unsigned long long g_stopGeneration = 0;
     CommandMode* g_stopCommand = nullptr;
     ValueHolderMember g_buildDelegate;
@@ -910,13 +915,44 @@ namespace
             GetCOREInterface()->GetCommandMode() == g_sessionCommand;
     }
 
+    bool SettingsTabOwnsFocus()
+    {
+        // Exact native input-window focus excludes spinners, the Listener,
+        // modifier controls, dialogs and other applications.
+        return OwnsSessionCommand() && IsWindow(g_hookedViewport) &&
+            GetFocus() == g_hookedViewport &&
+            GetCOREInterface()->GetActiveViewExp().GetHWnd() == g_hookedViewport &&
+            GetAncestor(GetForegroundWindow(), GA_ROOTOWNER) ==
+                GetAncestor(g_hookedViewport, GA_ROOTOWNER);
+    }
+
+    bool SettingsTabBusy()
+    {
+        return g_press.buttonDown || g_activeGesture != GestureRoute::None ||
+            g_relaxStrokeActive || theHold.Holding() || theHold.IsSuspended() ||
+            theHold.RestoreOrRedoing() || (GetKeyState(VK_LBUTTON) & 0x8000) != 0;
+    }
+
     void CALLBACK SessionTimerProc(HWND hwnd, UINT, UINT_PTR timerId, DWORD)
     {
         KillTimer(hwnd, timerId);
         if (timerId != g_sessionTimerId || !g_sessionWatching) return;
         g_sessionTimerId = 0;
-        const int flags = g_sessionPendingFlags;
+        int flags = g_sessionPendingFlags;
         g_sessionPendingFlags = 0;
+        HWND settingsFocus = nullptr;
+        if ((flags & kSettingsTabRequest) != 0)
+        {
+            // Context/history changes win over a queued UI request. Recheck
+            // focus and mouse/Undo state after returning to Max's message loop.
+            if (g_settingsTabPendingToggle && flags == kSettingsTabRequest && SettingsTabOwnsFocus() && !SettingsTabBusy())
+                settingsFocus = g_hookedViewport;
+            else
+                flags &= ~kSettingsTabRequest;
+        }
+        g_settingsTabPendingToggle = false;
+        if (flags == 0) return;
+        const auto generation = g_sessionGeneration;
         // The MAXScript handler rechecks this token before touching its state.
         // Dispatch after host notifications unwind, not from ModeChanged().
         const std::wstring script = L"if MayaQuadDrawR6 != undefined do MayaQuadDrawR6.onHostDeferred " +
@@ -924,6 +960,14 @@ namespace
             (OwnsSessionCommand() ? L" true" : L" false");
         const BOOL executed = ExecuteMAXScriptScript(script.c_str(), MAXScript::ScriptSource::NonEmbedded, TRUE);
         if (!executed) AppendCallbackLog("session.deferred.exception=true\r\n");
+        if (settingsFocus != nullptr && executed && generation == g_sessionGeneration &&
+            OwnsSessionCommand() && IsWindow(settingsFocus) &&
+            GetAncestor(GetForegroundWindow(), GA_ROOTOWNER) == GetAncestor(settingsFocus, GA_ROOTOWNER))
+        {
+            // Opening the floater is UI-only. Keep the originating viewport
+            // focused so the next Tab can close it without a modeling click.
+            SetFocus(settingsFocus);
+        }
     }
 
     bool RequestSessionCheck(int flags)
@@ -932,6 +976,57 @@ namespace
         g_sessionPendingFlags |= flags;
         if (g_sessionTimerId == 0) g_sessionTimerId = SetTimer(nullptr, 0, 1, SessionTimerProc);
         return g_sessionTimerId != 0;
+    }
+
+    LRESULT CALLBACK SettingsTabMessageProc(int code, WPARAM removeFlag, LPARAM messagePtr)
+    {
+        if (code == HC_ACTION && removeFlag == PM_REMOVE && messagePtr != 0)
+        {
+            auto* message = reinterpret_cast<MSG*>(messagePtr);
+            if ((message->message == WM_KEYDOWN || message->message == WM_KEYUP) && message->wParam == VK_TAB)
+            {
+                const bool inScope = SettingsTabOwnsFocus() && message->hwnd == g_hookedViewport;
+                const bool bareTab = ((GetKeyState(VK_SHIFT) | GetKeyState(VK_CONTROL) | GetKeyState(VK_MENU)) & 0x8000) == 0;
+                const auto action = g_settingsTabKey.process(
+                    message->message == WM_KEYDOWN, message->message == WM_KEYUP,
+                    (message->lParam & (static_cast<LPARAM>(1) << 30)) != 0,
+                    inScope, bareTab, inScope && SettingsTabBusy());
+                if (action == mqd::SettingsTabAction::Toggle)
+                {
+                    const bool queued = RequestSessionCheck(kSettingsTabRequest);
+                    if (queued) g_settingsTabPendingToggle = !g_settingsTabPendingToggle;
+                    AppendCallbackLog(queued
+                        ? "settings.tab.queued=true\r\n" : "settings.tab.queued=false\r\n");
+                }
+                if (action != mqd::SettingsTabAction::Pass)
+                {
+                    // Consume before accelerators/Qt focus traversal, without
+                    // executing MAXScript or creating windows inside the hook.
+                    message->message = WM_NULL;
+                    message->wParam = 0;
+                    message->lParam = 0;
+                }
+            }
+        }
+        return CallNextHookEx(g_settingsTabHook, code, removeFlag, messagePtr);
+    }
+
+    void RemoveSettingsTabHook()
+    {
+        if (g_settingsTabHook != nullptr) UnhookWindowsHookEx(g_settingsTabHook);
+        g_settingsTabHook = nullptr;
+        g_settingsTabKey.reset();
+        g_settingsTabPendingToggle = false;
+    }
+
+    void InstallSettingsTabHook()
+    {
+        RemoveSettingsTabHook();
+        const DWORD viewportThread = GetWindowThreadProcessId(g_hookedViewport, nullptr);
+        if (viewportThread != 0 && viewportThread == GetCurrentThreadId())
+            g_settingsTabHook = SetWindowsHookExW(WH_GETMESSAGE, SettingsTabMessageProc, nullptr, viewportThread);
+        AppendCallbackLog(g_settingsTabHook != nullptr
+            ? "settings.tab.hook=true\r\n" : "settings.tab.hook=false\r\n");
     }
 
     class SessionCommandObserver final : public CommandModeChangedCallback
@@ -950,6 +1045,7 @@ namespace
 
     void EndSessionWatch()
     {
+        RemoveSettingsTabHook();
         if (g_sessionWatching)
             GetCOREInterface()->UnRegisterCommandModeChangedCallback(&g_sessionCommandObserver);
         g_sessionWatching = false;
@@ -1067,6 +1163,7 @@ def_visible_primitive(MQDNativeV16SessionRequest, "MQDNativeV16SessionRequest");
 def_visible_primitive(MQDNativeV16SessionEnd, "MQDNativeV16SessionEnd");
 def_visible_primitive(MQDNativeV16SessionOwnsCommand, "MQDNativeV16SessionOwnsCommand");
 def_visible_primitive(MQDNativeV16SessionResetInput, "MQDNativeV16SessionResetInput");
+def_visible_primitive(MQDNativeV16SettingsTabHookActive, "MQDNativeV16SettingsTabHookActive");
 
 Value* MQDNativeV16SessionBegin_cf(Value**, int count)
 {
@@ -1077,7 +1174,14 @@ Value* MQDNativeV16SessionBegin_cf(Value**, int count)
     if (g_sessionCommand == nullptr) return Integer64::intern(0);
     g_sessionWatching = true;
     GetCOREInterface()->RegisterCommandModeChangedCallback(&g_sessionCommandObserver);
+    InstallSettingsTabHook();
     return Integer64::intern(g_sessionGeneration);
+}
+
+Value* MQDNativeV16SettingsTabHookActive_cf(Value**, int count)
+{
+    check_arg_count(MQDNativeV16SettingsTabHookActive, 0, count);
+    return g_settingsTabHook != nullptr && OwnsSessionCommand() ? &true_value : &false_value;
 }
 
 Value* MQDNativeV16SessionRequest_cf(Value** args, int count)

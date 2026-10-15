@@ -18,9 +18,13 @@
         #("Uninstall_MayaQuadDraw_Max2024.ms", rootPath+"Uninstall_MayaQuadDraw_Max2024.ms"),
         #("VERSION", rootPath+"docs\\VERSION.txt"),
         #("README.md", rootPath+"docs\\README.md"),
+        #("README.en.md", rootPath+"docs\\README.en.md"),
+        #("CHANGELOG.md", rootPath+"docs\\CHANGELOG.md"),
         #("LICENSE", rootPath+"docs\\LICENSE"),
         #("LICENSE.zh-CN.txt", rootPath+"docs\\LICENSE.zh-CN.txt"),
-        #("docs\\INSTALL.md", rootPath+"docs\\INSTALL.md")
+        #("docs\\INSTALL.md", rootPath+"docs\\INSTALL.md"),
+        #("docs\\FAQ.md", rootPath+"docs\\FAQ.md"),
+        #("docs\\TESTING.md", rootPath+"docs\\TESTING.md")
     )
     try
     (
