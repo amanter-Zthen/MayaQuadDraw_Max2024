@@ -23,9 +23,10 @@ struct MQDStackAdapterTestState
     ),
     fn result = #(checks,failures.count,failures),
     fn liveFaces n = (polyop.getNumFaces n.baseObject)-(polyop.getDeadFaces n.baseObject).numberSet,
-    fn setup =
+    fn setup allowedNodes:#() =
     (
-        if objects.count != 0 or maxFileName != "" or PBTrackGetToolActive() do throw "Empty idle scene required"
+        if maxFileName != "" or PBTrackGetToolActive() do throw "Unsaved idle test scene required"
+        for node in objects where (findItem allowedNodes node)==0 do throw "Scene contains a node not owned by this test run"
         savedPanel = getCommandPanelTaskMode()
         savedEndResult = showEndResult
         savedPick = PBo_Pickobject

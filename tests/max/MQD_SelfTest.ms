@@ -4,13 +4,16 @@ global MQDLayerSafetyTestDialog
 global MQDLayerSafetyTestReportPath
 global MQDLayerSafetyTestQuiet
 global MQDLayerSafetyTestResult
+global MQDLayerSafetyTestAllowedNodes
+global MQDLayerSafetyTestRootPath
+global MQDLayerSafetyTestReportOverride
 global MayaQuadDrawRootPath
 global MayaQuadDrawR6
 global MayaQuadDrawR1
 global MayaQuadDrawR3
 
 try (destroyDialog MQDLayerSafetyTestDialog) catch()
-MQDLayerSafetyTestReportPath = (getFilenamePath (getSourceFileName())) + "MQD_自检结果_2026-09-16.txt"
+MQDLayerSafetyTestReportPath = if MQDLayerSafetyTestReportOverride != undefined then MQDLayerSafetyTestReportOverride else (getFilenamePath (getSourceFileName())) + "MQD_自检结果_2026-09-16.txt"
 
 rollout MQDLayerSafetyTestDialog "MQD 分步自检" width:360 height:65
 (
@@ -131,8 +134,11 @@ rollout MQDLayerSafetyTestDialog "MQD 分步自检" width:360 height:65
             (
                 1:
                 (
-                    if objects.count != 0 do throw "Scene is not empty."
-                    MayaQuadDrawRootPath = (getDir #userScripts) + "\\MayaQuadDraw_Max2024\\"
+                    -- Default remains empty-scene only. Integration runners
+                    -- may retain an explicit list of their own earlier fixtures.
+                    local allowedNodes = if MQDLayerSafetyTestAllowedNodes == undefined then #() else MQDLayerSafetyTestAllowedNodes
+                    for node in objects where (findItem allowedNodes node)==0 do throw "Scene contains a node not owned by this test run."
+                    MayaQuadDrawRootPath = if MQDLayerSafetyTestRootPath != undefined then MQDLayerSafetyTestRootPath else (getDir #userScripts) + "\\MayaQuadDraw_Max2024\\"
             safeCreate = try (globalVars.get #MQDNativeV16CreateFaceSafe) catch (undefined)
             if safeCreate == undefined do
                 loadDllsFromDir (MayaQuadDrawRootPath + "plugins\\") "MayaQuadDrawNativeBridge_v16.dlx" forceLoad:true
@@ -525,7 +531,9 @@ rollout MQDLayerSafetyTestDialog "MQD 分步自检" width:360 height:65
 
 (
     local active = try (MayaQuadDrawR6 != undefined and MayaQuadDrawR6.active) catch (false)
-    if objects.count != 0 or active then
+    local allowedNodes = if MQDLayerSafetyTestAllowedNodes == undefined then #() else MQDLayerSafetyTestAllowedNodes
+    local unexpected = for node in objects where (findItem allowedNodes node)==0 collect node
+    if unexpected.count != 0 or active then
         messageBox "请先保存自己的模型，并切到空场景后再运行本自检。当前场景未修改。" title:"MQD 自检"
     else createDialog MQDLayerSafetyTestDialog
 )

@@ -85,13 +85,19 @@ struct MayaQuadDrawR1State
     fn appendLog textValue =
     (
         local stream = undefined
-        try (stream = openFile logPath mode:"a") catch (stream = undefined)
-        if stream != undefined do
+        local written = false
+        try
         (
-            format "%\r\n" textValue to:stream
-            close stream
+            stream = openFile logPath mode:"a"
+            if stream != undefined do
+            (
+                format "%\r\n" textValue to:stream
+                written = true
+            )
         )
-        true
+        catch()
+        if stream != undefined do try (close stream) catch()
+        written
     ),
 
     fn recordStateIfChanged =
@@ -502,7 +508,7 @@ struct MayaQuadDrawR1State
         true
     ),
 
-    fn onToolStart =
+    fn onToolStart refresh:true =
     (
         active = true
         lastTick = 0
@@ -512,22 +518,28 @@ struct MayaQuadDrawR1State
         statusText = "Active - read-only recognition"
         try (unregisterRedrawViewsCallback MayaQuadDrawR1_DrawCallback) catch()
         registerRedrawViewsCallback MayaQuadDrawR1_DrawCallback
-        completeRedraw()
+        if refresh do completeRedraw()
         appendLog ("started work=" + ownerNode.name + " target=" + targetNode.name)
         format "MQD R1 started. Work: %, Target: %\n" ownerNode targetNode
         true
     ),
 
-    fn onToolStop =
+    fn onToolStop refresh:true =
     (
         active = false
         try (unregisterRedrawViewsCallback MayaQuadDrawR1_DrawCallback) catch()
         hoverLevel = #none
         hoverIndex = 0
         hoverWorldPoints = #()
+        hoverWorld = [0,0,0]
+        hoverViewPoint = [0,0]
+        lastTick = 0
+        lastStateKey = ""
+        ownerNode = undefined
+        targetNode = undefined
         statusText = "Stopped"
         appendLog "stopped=true"
-        completeRedraw()
+        if refresh do completeRedraw()
         format "MQD R1 stopped. Geometry was not modified.\n"
         true
     )

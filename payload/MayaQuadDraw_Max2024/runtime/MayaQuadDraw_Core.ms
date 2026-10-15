@@ -64,7 +64,7 @@ global MayaQuadDrawR16_PainterResume
 global MayaQuadDrawRootPath
 global MayaQuadDrawInstalledRuntimeVersion
 
-MayaQuadDrawInstalledRuntimeVersion = "1.0.0-max2024-v20-stack1"
+MayaQuadDrawInstalledRuntimeVersion = "1.0.0-max2024-v20-session3"
 
 try (if MayaQuadDrawR6 != undefined and MayaQuadDrawR6.active do MayaQuadDrawR6.stopManual()) catch()
 
@@ -291,6 +291,16 @@ struct MayaQuadDrawR6State
     lastFreeTick = 0,
     statusText = "Not started",
     trackerExpected = false,
+    exitInProgress = false,
+    lastExitSucceeded = true,
+    lastExitErrors = #(),
+    lastExitReason = "",
+    sessionToken = 0,
+    sessionBaseObject = undefined,
+    historyPending = false,
+    contextPending = false,
+    historyRefreshCount = 0,
+    contextCheckCount = 0,
     launchStateCaptured = false,
     savedSelection = #(),
     savedCommandPanelMode = undefined,
@@ -306,12 +316,30 @@ struct MayaQuadDrawR6State
     internalRelaxPluginPath = MayaQuadDrawRootPath + "plugins\\MayaQuadDrawInternalRelax_v20.dlx",
     logPath = MayaQuadDrawRootPath + "logs\\MayaQuadDraw.log",
 
+    -- MAXScript binds struct functions in declaration order. These members
+    -- are called by earlier handlers and must be visible when those compile.
+    fn abortSession eventValue shiftValue ctrlValue altValue = false,
+    fn finishRelaxGesture cancelValue reasonText = false,
+    fn resumeAfterPainter = false,
+    fn stopManual = false,
+    fn completeExit reasonText endNativeTrack:true restoreContext:true = false,
+
     fn appendLog textValue =
     (
-        local stream = openFile logPath mode:"a"
-        format "%\r\n" textValue to:stream
-        close stream
-        true
+        local stream = undefined
+        local written = false
+        try
+        (
+            stream = openFile logPath mode:"a"
+            if stream != undefined do
+            (
+                format "%\r\n" textValue to:stream
+                written = true
+            )
+        )
+        catch()
+        if stream != undefined do try (close stream) catch()
+        written
     ),
 
     fn initializeLog =
@@ -338,10 +366,24 @@ struct MayaQuadDrawR6State
         if not isValidNode ownerNode then "V=<invalid> E=<invalid> F=<invalid>"
         else
         (
-            "V=" + (polyOp.getNumVerts ownerNode.baseObject as string) +
-            " E=" + (polyOp.getNumEdges ownerNode.baseObject as string) +
-            " F=" + (polyOp.getNumFaces ownerNode.baseObject as string)
+            try
+            (
+                local base = ownerNode.baseObject
+                if classOf base != Editable_Poly then "V=<unsupported> E=<unsupported> F=<unsupported>"
+                else
+                    "V=" + (polyOp.getNumVerts base as string) +
+                    " E=" + (polyOp.getNumEdges base as string) +
+                    " F=" + (polyOp.getNumFaces base as string)
+            )
+            catch ("V=<unavailable> E=<unavailable> F=<unavailable>")
         )
+    ),
+
+    fn recordExitError stage exceptionText =
+    (
+        append lastExitErrors (stage + ": " + exceptionText)
+        appendLog ("exit.error " + lastExitErrors[lastExitErrors.count])
+        false
     ),
 
     fn makeBits indices =
@@ -354,6 +396,113 @@ struct MayaQuadDrawR6State
     fn currentPoint =
     (
         try (mouse.pos) catch ([0,0])
+    ),
+
+    fn ownsNativeCommand =
+    (
+        local queryFn = try (globalVars.get #MQDNativeV16SessionOwnsCommand) catch (undefined)
+        sessionToken != 0 and queryFn != undefined and (try (queryFn sessionToken) catch (false))
+    ),
+
+    fn hasSessionContext =
+    (
+        try
+        (
+            isValidNode ownerNode and isValidNode targetNode and
+            classOf ownerNode.baseObject == Editable_Poly and ownerNode.baseObject == sessionBaseObject and
+            selection.count == 1 and selection[1] == ownerNode and
+            getCommandPanelTaskMode() == #modify and modPanel.getCurrentObject() == sessionBaseObject and
+            subObjectLevel == 1
+        )
+        catch (false)
+    ),
+
+    fn invalidateRecognition reasonText =
+    (
+        MayaQuadDrawR1.lastTick = 0
+        MayaQuadDrawR1.lastStateKey = ""
+        MayaQuadDrawR1.resetHover #none false
+        MayaQuadDrawR3.invalidateCaches reasonText
+        lastFreeHoverLevel = #none
+        lastFreeHoverIndex = 0
+        lastFreeTick = 0
+        local hintFn = try (globalVars.get #MQDNativeV15SetMoveHint) catch (undefined)
+        local cacheFn = try (globalVars.get #MQDNativeV16InvalidateVisibilityCache) catch (undefined)
+        if hintFn != undefined do try (hintFn false) catch()
+        if cacheFn != undefined do try (cacheFn()) catch()
+        true
+    ),
+
+    fn onHostEvent token kind =
+    (
+        if not active or token != sessionToken or exitInProgress do return false
+        contextPending = true
+        if kind == #history do
+        (
+            historyPending = true
+            -- Forget index-based preview data before Undo can replace it.
+            -- Host geometry and its Undo records remain entirely native.
+            invalidateRecognition "Host Undo/Redo"
+        )
+        local requestFn = try (globalVars.get #MQDNativeV16SessionRequest) catch (undefined)
+        if requestFn == undefined then false else try (requestFn sessionToken (if kind == #history then 1 else 2)) catch (false)
+    ),
+
+    fn removeSessionCallbacks =
+    (
+        callbacks.removeScripts id:#MayaQuadDrawSessionLifecycle
+        local endFn = try (globalVars.get #MQDNativeV16SessionEnd) catch (undefined)
+        if sessionToken != 0 and endFn != undefined do endFn sessionToken
+        true
+    ),
+
+    fn installSessionCallbacks =
+    (
+        callbacks.removeScripts id:#MayaQuadDrawSessionLifecycle
+        local prefix = "if MayaQuadDrawR6 != undefined do MayaQuadDrawR6.onHostEvent " + (sessionToken as string)
+        for eventId in #(#preSceneUndo,#sceneUndo,#preSceneRedo,#sceneRedo) do
+            callbacks.addScript eventId (prefix + " #history") id:#MayaQuadDrawSessionLifecycle persistent:false
+        for eventId in #(#modPanelObjPostChange,#modPanelSelChanged,#selectionSetChanged,#nodePostDelete) do
+            callbacks.addScript eventId (prefix + " #context") id:#MayaQuadDrawSessionLifecycle persistent:false
+        true
+    ),
+
+    fn onHostDeferred token flags ownsMode =
+    (
+        if not active or token != sessionToken or exitInProgress do return false
+        contextCheckCount += 1
+        -- The host may report an Undefined edit object midway through a stack
+        -- change. Validate the settled context on the deferred main-thread call.
+        if not (hasSessionContext()) or not ownsMode or not PBTrackGetToolActive() then
+            completeExit "host context changed" endNativeTrack:ownsMode restoreContext:false
+        else
+        (
+            if historyPending do
+            (
+                invalidateRecognition "Host Undo/Redo settled"
+                if not moveGestureActive and not borderGestureActive and not relaxGestureActive do
+                (
+                    local inputFn = globalVars.get #MQDNativeV16SessionResetInput
+                    inputFn sessionToken
+                )
+                historyRefreshCount += 1
+            )
+            historyPending = false
+            contextPending = false
+            true
+        )
+    ),
+
+    fn canDispatch eventValue =
+    (
+        if not active do return false
+        if eventValue == #mouseAbort do return true
+        if historyPending or not (hasSessionContext()) or not (ownsNativeCommand()) then
+        (
+            onHostEvent sessionToken #context
+            false
+        )
+        else true
     ),
 
     fn refreshRecognition shiftValue ctrlValue altValue recordFree:false preservePreview:false =
@@ -1313,6 +1462,7 @@ struct MayaQuadDrawR6State
 
     fn handleBuild eventValue shiftValue ctrlValue altValue =
     (
+        if not (canDispatch eventValue) do return #continue
         if swiftLoopPreviewActive and not (isSwiftLoopChord shiftValue ctrlValue altValue) do
             gentleSwiftLoopHandoff ("Build route shift=" + (shiftValue as string) + " ctrl=" + (ctrlValue as string) + " alt=" + (altValue as string))
         if not (isSwiftLoopChord shiftValue ctrlValue altValue) do swiftLoopSessionArmed = false
@@ -1359,6 +1509,7 @@ struct MayaQuadDrawR6State
 
     fn handleMove eventValue shiftValue ctrlValue altValue =
     (
+        if not (canDispatch eventValue) do return #continue
         if swiftLoopPreviewActive and not (isSwiftLoopChord shiftValue ctrlValue altValue) do
             gentleSwiftLoopHandoff ("Move route shift=" + (shiftValue as string) + " ctrl=" + (ctrlValue as string) + " alt=" + (altValue as string))
         if not (isSwiftLoopChord shiftValue ctrlValue altValue) do swiftLoopSessionArmed = false
@@ -1449,6 +1600,7 @@ struct MayaQuadDrawR6State
 
     fn handleBorder eventValue shiftValue ctrlValue altValue =
     (
+        if not (canDispatch eventValue) do return #continue
         if swiftLoopPreviewActive do
             gentleSwiftLoopHandoff ("Border route shift=" + (shiftValue as string) + " ctrl=" + (ctrlValue as string) + " alt=" + (altValue as string))
         swiftLoopSessionArmed = false
@@ -1578,29 +1730,38 @@ struct MayaQuadDrawR6State
         true
     ),
 
-    fn restoreLaunchState reasonText =
+    fn restoreLaunchState reasonText restoreContext:true =
     (
         if not launchStateCaptured then false
         else
         (
-            if savedPDDrawtype != undefined do try (PolyToolsUI.PDDrawtype = savedPDDrawtype) catch()
-            if savedPDAutoWeld != undefined do try (PolyToolsUI.PDAutoWeld = savedPDAutoWeld) catch()
-            try (PBo_Pickobject = savedPickObject) catch()
+            if restoreContext do
+            (
+                if savedPDDrawtype != undefined do try (PolyToolsUI.PDDrawtype = savedPDDrawtype) catch()
+                if savedPDAutoWeld != undefined do try (PolyToolsUI.PDAutoWeld = savedPDAutoWeld) catch()
+                try (PBo_Pickobject = savedPickObject) catch()
+            )
             if isValidNode ownerNode and savedOwnerVertexTicks != undefined do try (ownerNode.vertexTicks = savedOwnerVertexTicks) catch()
 
+            if restoreContext do
+            (
             local validSavedSelection = #()
             for savedNode in savedSelection where isValidNode savedNode do append validSavedSelection savedNode
             try
             (
-                if validSavedSelection.count > 0 then select validSavedSelection else clearSelection()
+                local sameSelection = selection.count == validSavedSelection.count
+                if sameSelection do for i=1 to validSavedSelection.count where selection[i] != validSavedSelection[i] do sameSelection=false
+                if not sameSelection do
+                    (if validSavedSelection.count > 0 then select validSavedSelection else clearSelection())
             )
             catch()
 
-            if savedCommandPanelMode != undefined do try (setCommandPanelTaskMode mode:savedCommandPanelMode) catch()
+            if savedCommandPanelMode != undefined and getCommandPanelTaskMode() != savedCommandPanelMode do try (setCommandPanelTaskMode mode:savedCommandPanelMode) catch()
             if savedCommandPanelMode == #modify and savedStackObject != undefined and isValidNode ownerNode do
-                try (modPanel.setCurrentObject savedStackObject node:ownerNode) catch()
-            if savedCommandPanelMode == #modify and savedSubObjectLevel != undefined do try (subObjectLevel = savedSubObjectLevel) catch()
-            if savedShowEndResult != undefined do try (showEndResult = savedShowEndResult) catch()
+                try (if modPanel.getCurrentObject() != savedStackObject do modPanel.setCurrentObject savedStackObject node:ownerNode) catch()
+            if savedCommandPanelMode == #modify and savedSubObjectLevel != undefined do try (if subObjectLevel != savedSubObjectLevel do subObjectLevel = savedSubObjectLevel) catch()
+            if savedShowEndResult != undefined do try (if showEndResult != savedShowEndResult do showEndResult = savedShowEndResult) catch()
+            )
 
             appendLog ("launchState restored reason=" + reasonText + " panel=" + (savedCommandPanelMode as string) +
                 " subObject=" + (savedSubObjectLevel as string) + " vertexTicks=" + (savedOwnerVertexTicks as string))
@@ -1610,14 +1771,27 @@ struct MayaQuadDrawR6State
         )
     ),
 
-    fn completeExit reasonText endNativeTrack:true =
+    fn completeExit reasonText endNativeTrack:true restoreContext:true =
     (
+        if exitInProgress do return false
+        local ownedSession = active or trackerExpected or launchStateCaptured or painterSessionOwned
+        if not ownedSession do return lastExitSucceeded
+        exitInProgress = true
+        lastExitErrors = #()
+        lastExitReason = reasonText
         local wasActive = active
-        if relaxGestureActive do finishRelaxGesture true reasonText
-        local beforeExitCounts = countsText()
-
+        local commandOwned = ownsNativeCommand()
+        -- Explicit stop restores launch UI only while we still own that edit
+        -- context. Passive cleanup preserves the user's new stack/selection.
+        local restoreOwnedContext = restoreContext and (sessionToken == 0 or (commandOwned and hasSessionContext()))
+        local shouldEndNative = endNativeTrack and (sessionToken == 0 or commandOwned)
+        -- Detach our session before invoking anything that can send host
+        -- notifications. Mesh statistics and logging are optional diagnostics.
         active = false
         trackerExpected = false
+        try (removeSessionCallbacks()) catch (recordExitError "session callbacks" (getCurrentException()))
+        if relaxGestureActive do try (finishRelaxGesture true reasonText) catch (recordExitError "finishRelaxGesture" (getCurrentException()))
+        local beforeExitCounts = countsText()
         borderGestureActive = false
         borderLoopGesture = false
         borderStartEdge = 0
@@ -1635,40 +1809,68 @@ struct MayaQuadDrawR6State
         painterSessionOwned = false
         painterExitRequested = false
 
-        try (unregisterRedrawViewsCallback MayaQuadDrawR6_DrawCallback) catch()
-        try (MayaQuadDrawR3.onToolStop()) catch()
-        try (MayaQuadDrawR1.onToolStop()) catch()
+        try (unregisterRedrawViewsCallback MayaQuadDrawR6_DrawCallback) catch (recordExitError "redraw callback" (getCurrentException()))
+        try (MayaQuadDrawR3.onToolStop refresh:false) catch (recordExitError "candidate stop" (getCurrentException()))
+        try (MayaQuadDrawR1.onToolStop refresh:false) catch (recordExitError "recognizer stop" (getCurrentException()))
 
         local cancelRelaxFn = globalVars.get #MQDInternalRelaxV20Cancel
-        if cancelRelaxFn != undefined do try (cancelRelaxFn()) catch()
+        if cancelRelaxFn != undefined do try (cancelRelaxFn()) catch (recordExitError "native Relax stop" (getCurrentException()))
 
-        if endNativeTrack do
+        if shouldEndNative do
         (
             try
             (
-                if PolyToolsUI.PDTool == 1 then PolyBoost.ToolToggle 1 1 false else PBEndTrack()
+                if restoreOwnedContext and PolyToolsUI.PDTool == 1 then PolyBoost.ToolToggle 1 1 false else PBEndTrack()
             )
             catch
             (
-                try (PBEndTrack()) catch()
+                recordExitError "native tool stop" (getCurrentException())
+                try (PBEndTrack()) catch (recordExitError "native tracker fallback" (getCurrentException()))
                 try (PolyToolsUI.PDTool = 0) catch()
             )
         )
 
+        -- Clear the owned PolyDraw button state without issuing another Max
+        -- command. A replacement PolyDraw session retains its own UI state.
+        if commandOwned or not (try (PBTrackGetToolActive()) catch (false)) do try
+        (
+            if PolyToolsUI.PDTool == 1 do
+            (
+                PolyToolsUI.PDTool = 0
+                for i=1 to 12 do PolyToolsUI.PDButtons[i] = false
+            )
+        ) catch (recordExitError "PolyDraw button state" (getCurrentException()))
+
         local removeHookFn = globalVars.get #MQDNativeV15InputHookRemove
-        if removeHookFn != undefined do try (removeHookFn()) catch()
+        if removeHookFn != undefined do try
+        (
+            if not removeHookFn() do recordExitError "input hook" "Removal returned false"
+        )
+        catch (recordExitError "input hook" (getCurrentException()))
         local invalidateVisibilityFn = globalVars.get #MQDNativeV16InvalidateVisibilityCache
-        if invalidateVisibilityFn != undefined do try (invalidateVisibilityFn()) catch()
-        try (MayaQuadDrawUI_Close()) catch()
-        restoreLaunchState reasonText
+        if invalidateVisibilityFn != undefined do try (invalidateVisibilityFn()) catch (recordExitError "visibility cache" (getCurrentException()))
+        -- The explicitly opened settings window has its own lifetime. Ending
+        -- a drawing session keeps its handle/position/parameters ready to use.
+        try (restoreLaunchState reasonText restoreContext:restoreOwnedContext) catch (recordExitError "launch state" (getCurrentException()))
 
         statusText = "Exited"
         appendLog ("exit.complete reason=" + reasonText + " wasActive=" + (wasActive as string) +
             " nativeTrack=" + (if endNativeTrack then "ended" else "native-deferred") + " " + beforeExitCounts)
         ownerNode = undefined
         targetNode = undefined
-        completeRedraw()
-        true
+        sessionBaseObject = undefined
+        sessionToken = 0
+        historyPending = false
+        contextPending = false
+        launchStateCaptured = false
+        savedSelection = #()
+        local localStateStopped = (try (not MayaQuadDrawR1.active and not MayaQuadDrawR3.active) catch (false))
+        local nativeStopped = if shouldEndNative then (try (not PBTrackGetToolActive()) catch (false)) else true
+        lastExitSucceeded = localStateStopped and nativeStopped and lastExitErrors.count == 0
+        exitInProgress = false
+        appendLog ("exit.result=" + (lastExitSucceeded as string) + " errors=" + (lastExitErrors.count as string))
+        try (completeRedraw()) catch()
+        lastExitSucceeded
     ),
 
     fn abortSession eventValue shiftValue ctrlValue altValue =
@@ -1704,7 +1906,7 @@ struct MayaQuadDrawR6State
             if not trackerStillActive do
             (
                 appendLog "Tracker ended externally; completing MQD exit"
-                completeExit "external tracker handoff" endNativeTrack:true
+                onHostEvent sessionToken #context
             )
         )
         true
@@ -1774,7 +1976,7 @@ struct MayaQuadDrawR6State
             registrationReady = registrationReady and internalRelaxVersionFn != undefined and relaxBeginFn != undefined and relaxStepFn != undefined and relaxEndFn != undefined and relaxCancelFn != undefined and relaxStatusFn != undefined
             -- A session with old loaded DLLs must not mix evaluated-mesh and
             -- base-object adapters. Restart is required to activate new DLLs.
-            registrationReady = registrationReady and (try (v16VersionFn() == "0.17.7-max2024-v16-base-object") catch (false))
+            registrationReady = registrationReady and (try (v16VersionFn() == "0.17.8-max2024-v16-session-lifecycle") catch (false))
             registrationReady = registrationReady and (try (internalRelaxVersionFn() == "0.20.1-max2024-sdk-paint-deform-base-object") catch (false))
 
             appendLog ("plugin.load=" + (loadResult as string))
@@ -1809,11 +2011,12 @@ struct MayaQuadDrawR6State
             try (PolyToolsUI.PDDrawtype = 2) catch()
             try (PolyToolsUI.PDAutoWeld = true) catch()
             try (PBo_Pickobject = targetNode) catch()
-            select ownerNode
-            max modify mode
-            modPanel.setCurrentObject ownerNode.baseObject node:ownerNode
-            try (subObjectLevel = 0) catch()
-            if ownerNode.modifiers.count > 0 do showEndResult = true
+            -- prepare() already binds the sole selected object. Avoid a
+            -- redundant select/rebuild of the same modifier-panel UI.
+            if getCommandPanelTaskMode() != #modify do max modify mode
+            if modPanel.getCurrentObject() != ownerNode.baseObject do modPanel.setCurrentObject ownerNode.baseObject node:ownerNode
+            try (if subObjectLevel != 0 do subObjectLevel = 0) catch()
+            if ownerNode.modifiers.count > 0 and not showEndResult do showEndResult = true
             try (PolyBoost.PolyDrawStart 1) catch (appendLog ("official.start.exception=" + getCurrentException()))
             try (PBEndTrack()) catch()
             try (PolyBDrawNodeInit targetNode) catch (appendLog ("surface.reinit.exception=" + getCurrentException()))
@@ -1873,8 +2076,8 @@ struct MayaQuadDrawR6State
                 lastFreeHoverLevel = #none
                 lastFreeHoverIndex = 0
                 statusText = "Ready"
-                MayaQuadDrawR1.onToolStart()
-                MayaQuadDrawR3.onToolStart()
+                MayaQuadDrawR1.onToolStart refresh:false
+                MayaQuadDrawR3.onToolStart refresh:false
                 try (unregisterRedrawViewsCallback MayaQuadDrawR6_DrawCallback) catch()
                 registerRedrawViewsCallback MayaQuadDrawR6_DrawCallback
 
@@ -1891,6 +2094,22 @@ struct MayaQuadDrawR6State
                 appendLog ("started delegates=" + (delegatesReady as string) + " " + countsText())
                 PBStartTrack trackFn
                 trackerExpected = true
+                sessionBaseObject = ownerNode.baseObject
+                local beginSessionFn = globalVars.get #MQDNativeV16SessionBegin
+                sessionToken = beginSessionFn()
+                historyPending = false
+                contextPending = false
+                if sessionToken == 0 do
+                (
+                    completeExit "session observer unavailable" endNativeTrack:true
+                    return false
+                )
+                try (installSessionCallbacks()) catch
+                (
+                    recordExitError "session observer install" (getCurrentException())
+                    completeExit "session observer install failed" endNativeTrack:true
+                    return false
+                )
                 appendLog ("tracker.active=" + (PBTrackGetToolActive() as string))
                 -- Settings are opened explicitly through the MQD Settings action.
                 completeRedraw()
@@ -1965,8 +2184,7 @@ fn MayaQuadDrawR6_Start =
 fn MayaQuadDrawR6_Stop =
 (
     global MayaQuadDrawR6
-    if MayaQuadDrawR6 != undefined do MayaQuadDrawR6.stopManual()
-    true
+    if MayaQuadDrawR6 != undefined then MayaQuadDrawR6.stopManual() else true
 )
 
 format "MQD 1.0 runtime loaded. Run MayaQuadDrawR6_Start().\n"

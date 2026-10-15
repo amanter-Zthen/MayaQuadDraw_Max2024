@@ -21,7 +21,7 @@ fn MayaQuadDraw_Load =
     )
     else
     (
-        local alreadyLoaded = try (MayaQuadDrawInstalledRuntimeVersion == "1.0.0-max2024-v20-stack1") catch (false)
+        local alreadyLoaded = try (MayaQuadDrawInstalledRuntimeVersion == "1.0.0-max2024-v20-session3") catch (false)
         if alreadyLoaded then true
         else
         (
@@ -94,11 +94,21 @@ fn MayaQuadDraw_Stop =
 (
     global MayaQuadDrawR6
     global MayaQuadDrawR6_Stop
-    global MayaQuadDrawUI_Close
 
-    try (if MayaQuadDrawR6_Stop != undefined do MayaQuadDrawR6_Stop()) catch()
-    try (if MayaQuadDrawUI_Close != undefined do MayaQuadDrawUI_Close()) catch()
-    true
+    local stopped = true
+    try
+    (
+        if MayaQuadDrawR6_Stop != undefined then stopped = (MayaQuadDrawR6_Stop() == true)
+        else if MayaQuadDrawR6 != undefined do stopped = not MayaQuadDrawR6.active
+    )
+    catch
+    (
+        stopped = false
+        format "MQD stop failed: %\n" (getCurrentException())
+    )
+    -- Settings are independent of the drawing session; the settings action
+    -- or the window's close button controls their lifetime.
+    stopped
 )
 
 fn MayaQuadDraw_Toggle =

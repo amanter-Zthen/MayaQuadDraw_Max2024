@@ -11,7 +11,7 @@ function Confirm([string]$label, [bool]$condition) {
 $stateOffset = $core.IndexOf('struct MayaQuadDrawR6State')
 Confirm 'Core state exists' ($stateOffset -gt 0)
 Confirm 'Modeling lifecycle never opens UI' (!$core.Substring($stateOffset).Contains('MayaQuadDrawUI_Open('))
-Confirm 'Modeling exit still closes UI' ($core.Substring($stateOffset).Contains('MayaQuadDrawUI_Close()'))
+Confirm 'Modeling exit preserves explicit settings window' (!$core.Substring($stateOffset).Contains('MayaQuadDrawUI_Close()') -and !$startup.Contains('MayaQuadDrawUI_Close()'))
 Confirm 'Open state comes from live floater' ($core.Contains('MayaQuadDrawUIFloater.open'))
 Confirm 'Position reads are numeric' ($core.Contains('[xText as integer,yText as integer]'))
 Confirm 'Position file is MQD-specific' ($core.Contains('MayaQuadDraw_Max2024_UI.ini'))

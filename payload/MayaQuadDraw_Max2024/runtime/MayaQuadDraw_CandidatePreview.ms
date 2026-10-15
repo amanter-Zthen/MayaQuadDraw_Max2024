@@ -86,10 +86,20 @@ struct MayaQuadDrawR3State
 
     fn appendLog textValue =
     (
-        local stream = openFile logPath mode:"a"
-        format "%\r\n" textValue to:stream
-        close stream
-        true
+        local stream = undefined
+        local written = false
+        try
+        (
+            stream = openFile logPath mode:"a"
+            if stream != undefined do
+            (
+                format "%\r\n" textValue to:stream
+                written = true
+            )
+        )
+        catch()
+        if stream != undefined do try (close stream) catch()
+        written
     ),
 
     fn idArrayText values =
@@ -132,6 +142,23 @@ struct MayaQuadDrawR3State
         candidateTime = undefined
         previewStatus = reasonValue
         recordPreviewIfChanged()
+        true
+    ),
+
+    fn invalidateCaches reasonValue =
+    (
+        clearCandidate reasonValue
+        quadSourceIds = #()
+        quadSourceScreen = #()
+        visibleIds = #()
+        visibleWorld = #()
+        visibleScreen = #()
+        eligibleIds = #()
+        eligibleWorld = #()
+        eligibleScreen = #()
+        eligibleKinds = #()
+        blockedIds = #()
+        blockedWorld = #()
         true
     ),
 
@@ -1200,7 +1227,7 @@ struct MayaQuadDrawR3State
         true
     ),
 
-    fn onToolStart =
+    fn onToolStart refresh:true =
     (
         active = true
         shiftHeld = false
@@ -1215,15 +1242,16 @@ struct MayaQuadDrawR3State
         try (unregisterRedrawViewsCallback MayaQuadDrawR3_DrawCallback) catch()
         registerRedrawViewsCallback MayaQuadDrawR3_DrawCallback
         recordPreviewIfChanged()
-        completeRedraw()
+        if refresh do completeRedraw()
         format "MQD R16 triangle-hole and quad preview started. Geometry commands are disabled.\n"
         true
     ),
 
-    fn onToolStop =
+    fn onToolStop refresh:true =
     (
         active = false
         shiftHeld = false
+        invalidateCaches "Session stopped"
         candidateValid = false
         candidateKind = #none
         candidateVerts = #()
@@ -1233,7 +1261,7 @@ struct MayaQuadDrawR3State
         blockedWorld = #()
         try (unregisterRedrawViewsCallback MayaQuadDrawR3_DrawCallback) catch()
         appendLog "stopped=true"
-        completeRedraw()
+        if refresh do completeRedraw()
         format "MQD R16 preview stopped. Geometry was not modified.\n"
         true
     )

@@ -48,6 +48,16 @@ namespace
     std::atomic<long long> g_trackCallbackCount{0};
     std::atomic<bool> g_stopScheduled{false};
     std::atomic<UINT_PTR> g_watchdogTimerId{0};
+    // Main-thread session ownership. Command pointers are compared only, never
+    // dereferenced after Max changes modes. No scene/Undo data lives here.
+    unsigned long long g_sessionGeneration = 0;
+    CommandMode* g_sessionCommand = nullptr;
+    bool g_sessionWatching = false;
+    bool g_sessionCommandLost = false;
+    UINT_PTR g_sessionTimerId = 0;
+    int g_sessionPendingFlags = 0;
+    unsigned long long g_stopGeneration = 0;
+    CommandMode* g_stopCommand = nullptr;
     ValueHolderMember g_buildDelegate;
     ValueHolderMember g_moveDelegate;
     ValueHolderMember g_borderDelegate;
@@ -493,12 +503,13 @@ namespace
     }
 
     bool RemovePressHook();
+    void EndSessionWatch();
 
     class BridgeGup final : public GUP
     {
     public:
         DWORD Start() override { return GUPRESULT_KEEP; }
-        void Stop() override { RemovePressHook(); }
+        void Stop() override { EndSessionWatch(); RemovePressHook(); }
         DWORD_PTR Control(DWORD) override { return 0; }
         void DeleteThis() override { delete this; }
     };
@@ -815,10 +826,17 @@ namespace
     void CALLBACK StopTrackTimerProc(HWND hwnd, UINT, UINT_PTR timerId, DWORD)
     {
         KillTimer(hwnd, timerId);
+        if (timerId != g_watchdogTimerId.load()) return;
         g_watchdogTimerId.store(0);
         g_stopScheduled.store(false);
+        if (g_stopGeneration != g_sessionGeneration || g_stopCommand == nullptr ||
+            GetCOREInterface()->GetCommandMode() != g_stopCommand)
+        {
+            AppendCallbackLog("exit.cleanup.skipped=command-or-session-changed\r\n");
+            return;
+        }
         const BOOL executed = ExecuteMAXScriptScript(
-            _T("try(if PolyToolsUI.PDTool == 1 then PolyBoost.ToolToggle 1 1 false else PBEndTrack())catch(try(PBEndTrack())catch())"),
+            _T("try(PBEndTrack())catch()"),
             MAXScript::ScriptSource::NonEmbedded,
             TRUE);
         RemovePressHook();
@@ -856,8 +874,11 @@ namespace
         g_stopScheduled.store(false);
     }
 
-    void ScheduleTrackStop(UINT delayMs, bool replaceExisting)
+    void ScheduleTrackStop(UINT delayMs, bool replaceExisting, CommandMode* ownedCommand,
+        unsigned long long generation)
     {
+        if (generation != g_sessionGeneration || ownedCommand == nullptr ||
+            GetCOREInterface()->GetCommandMode() != ownedCommand) return;
         if (replaceExisting)
         {
             CancelTrackStopTimer();
@@ -869,6 +890,9 @@ namespace
             // never re-entered from inside its own mouse dispatch.
             const UINT_PTR timerId = SetTimer(nullptr, 0, delayMs, StopTrackTimerProc);
             g_watchdogTimerId.store(timerId);
+            g_stopGeneration = generation;
+            g_stopCommand = ownedCommand;
+            if (timerId == 0) g_stopScheduled.store(false);
             if (delayMs <= 1)
             {
                 AppendCallbackLog(timerId != 0 ? "exit.cleanup.scheduled=true\r\n" : "exit.cleanup.scheduled=false\r\n");
@@ -878,6 +902,63 @@ namespace
                 AppendCallbackLog(timerId != 0 ? "watchdog.60s.scheduled=true\r\n" : "watchdog.60s.scheduled=false\r\n");
             }
         }
+    }
+
+    bool OwnsSessionCommand()
+    {
+        return g_sessionWatching && !g_sessionCommandLost && g_sessionCommand != nullptr &&
+            GetCOREInterface()->GetCommandMode() == g_sessionCommand;
+    }
+
+    void CALLBACK SessionTimerProc(HWND hwnd, UINT, UINT_PTR timerId, DWORD)
+    {
+        KillTimer(hwnd, timerId);
+        if (timerId != g_sessionTimerId || !g_sessionWatching) return;
+        g_sessionTimerId = 0;
+        const int flags = g_sessionPendingFlags;
+        g_sessionPendingFlags = 0;
+        // The MAXScript handler rechecks this token before touching its state.
+        // Dispatch after host notifications unwind, not from ModeChanged().
+        const std::wstring script = L"if MayaQuadDrawR6 != undefined do MayaQuadDrawR6.onHostDeferred " +
+            std::to_wstring(g_sessionGeneration) + L" " + std::to_wstring(flags) +
+            (OwnsSessionCommand() ? L" true" : L" false");
+        const BOOL executed = ExecuteMAXScriptScript(script.c_str(), MAXScript::ScriptSource::NonEmbedded, TRUE);
+        if (!executed) AppendCallbackLog("session.deferred.exception=true\r\n");
+    }
+
+    bool RequestSessionCheck(int flags)
+    {
+        if (!g_sessionWatching) return false;
+        g_sessionPendingFlags |= flags;
+        if (g_sessionTimerId == 0) g_sessionTimerId = SetTimer(nullptr, 0, 1, SessionTimerProc);
+        return g_sessionTimerId != 0;
+    }
+
+    class SessionCommandObserver final : public CommandModeChangedCallback
+    {
+    public:
+        void ModeChanged(CommandMode*, CommandMode* newMode) override
+        {
+            if (g_sessionWatching && newMode != g_sessionCommand)
+            {
+                g_sessionCommandLost = true;
+                RequestSessionCheck(2);
+            }
+        }
+    };
+    SessionCommandObserver g_sessionCommandObserver;
+
+    void EndSessionWatch()
+    {
+        if (g_sessionWatching)
+            GetCOREInterface()->UnRegisterCommandModeChangedCallback(&g_sessionCommandObserver);
+        g_sessionWatching = false;
+        g_sessionCommand = nullptr;
+        g_sessionCommandLost = false;
+        if (g_sessionTimerId != 0) KillTimer(nullptr, g_sessionTimerId);
+        g_sessionTimerId = 0;
+        g_sessionPendingFlags = 0;
+        CancelTrackStopTimer();
     }
 
     Value* DelegateForRoute(GestureRoute route)
@@ -981,6 +1062,56 @@ def_visible_primitive(MQDNativeV15RelaxStep, "MQDNativeV15RelaxStep");
 def_visible_primitive(MQDNativeV15RelaxEnd, "MQDNativeV15RelaxEnd");
 def_visible_primitive(MQDNativeV15RelaxCancel, "MQDNativeV15RelaxCancel");
 def_visible_primitive(MQDNativeV15ShiftDown, "MQDNativeV15ShiftDown");
+def_visible_primitive(MQDNativeV16SessionBegin, "MQDNativeV16SessionBegin");
+def_visible_primitive(MQDNativeV16SessionRequest, "MQDNativeV16SessionRequest");
+def_visible_primitive(MQDNativeV16SessionEnd, "MQDNativeV16SessionEnd");
+def_visible_primitive(MQDNativeV16SessionOwnsCommand, "MQDNativeV16SessionOwnsCommand");
+def_visible_primitive(MQDNativeV16SessionResetInput, "MQDNativeV16SessionResetInput");
+
+Value* MQDNativeV16SessionBegin_cf(Value**, int count)
+{
+    check_arg_count(MQDNativeV16SessionBegin, 0, count);
+    EndSessionWatch();
+    ++g_sessionGeneration;
+    g_sessionCommand = GetCOREInterface()->GetCommandMode();
+    if (g_sessionCommand == nullptr) return Integer64::intern(0);
+    g_sessionWatching = true;
+    GetCOREInterface()->RegisterCommandModeChangedCallback(&g_sessionCommandObserver);
+    return Integer64::intern(g_sessionGeneration);
+}
+
+Value* MQDNativeV16SessionRequest_cf(Value** args, int count)
+{
+    check_arg_count(MQDNativeV16SessionRequest, 2, count);
+    return static_cast<unsigned long long>(args[0]->to_int64()) == g_sessionGeneration &&
+        RequestSessionCheck(args[1]->to_int()) ? &true_value : &false_value;
+}
+
+Value* MQDNativeV16SessionEnd_cf(Value** args, int count)
+{
+    check_arg_count(MQDNativeV16SessionEnd, 1, count);
+    if (static_cast<unsigned long long>(args[0]->to_int64()) != g_sessionGeneration) return &false_value;
+    EndSessionWatch();
+    return &true_value;
+}
+
+Value* MQDNativeV16SessionOwnsCommand_cf(Value** args, int count)
+{
+    check_arg_count(MQDNativeV16SessionOwnsCommand, 1, count);
+    return static_cast<unsigned long long>(args[0]->to_int64()) == g_sessionGeneration &&
+        OwnsSessionCommand() ? &true_value : &false_value;
+}
+
+Value* MQDNativeV16SessionResetInput_cf(Value** args, int count)
+{
+    check_arg_count(MQDNativeV16SessionResetInput, 1, count);
+    if (static_cast<unsigned long long>(args[0]->to_int64()) != g_sessionGeneration ||
+        !OwnsSessionCommand()) return &false_value;
+    g_activeGesture = GestureRoute::None;
+    g_hoverMoveHint = false;
+    ResetPressCapture();
+    return &true_value;
+}
 
 Value* MQDNativeV15BridgeVersion_cf(Value**, int count)
 {
@@ -1008,6 +1139,10 @@ Value* MQDNativeV15SetDelegates_cf(Value** argList, int count)
 
 Value* MQDNativeV15TrackPrimitive_cf(Value** argList, int count)
 {
+    // A queued abort owns only the command that received it.
+    if (g_stopScheduled.load()) return &false_value;
+    CommandMode* dispatchCommand = GetCOREInterface()->GetCommandMode();
+    const auto dispatchGeneration = g_sessionGeneration;
     const long long callbackCount = ++g_trackCallbackCount;
     if (callbackCount == 1)
     {
@@ -1107,7 +1242,7 @@ Value* MQDNativeV15TrackPrimitive_cf(Value** argList, int count)
 
     if (exiting)
     {
-        ScheduleTrackStop(1, true);
+        ScheduleTrackStop(1, true, dispatchCommand, dispatchGeneration);
     }
     return result != nullptr ? result : &false_value;
 }
@@ -1121,7 +1256,8 @@ Value* MQDNativeV15TrackCount_cf(Value**, int count)
 Value* MQDNativeV15TrackReset_cf(Value**, int count)
 {
     check_arg_count(MQDNativeV15TrackReset, 0, count);
-    CancelTrackStopTimer();
+    EndSessionWatch();
+    ++g_sessionGeneration;
     g_trackCallbackCount.store(0);
     g_activeGesture = GestureRoute::None;
     g_hoverMoveHint = false;

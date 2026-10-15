@@ -1,0 +1,88 @@
+MQD local candidate: session lifecycle and warm activation
+Date: 2026-10-15
+Status: local development candidate, not an installed/released update.
+
+Identity
+- Runtime: 1.0.0-max2024-v20-session3
+- Native input bridge: 0.17.8-max2024-v16-session-lifecycle
+- Native Relax: 0.20.1-max2024-sdk-paint-deform-base-object (unchanged)
+- VERSION remains 1.0.0; no new release tag/MZP is implied.
+
+Drawing and resource lifetimes
+1. Loaded runtime/native modules and settings resources stay ready between calls.
+2. Enter binds the current work mesh, exact base-object instance and target.
+3. Ordinary geometry Undo/Redo invalidates hover/candidate/depth caches and
+   continues the same valid drawing session. Max owns geometry Undo records.
+4. Selecting an upper modifier ends MQD. Subsequent modifier deletion and
+   Undo/Redo operate as normal Max history and do not reopen MQD.
+5. Passive cleanup preserves the newly chosen object/stack entry/command.
+   Explicit exit restores paired launch UI only while MQD still owns it.
+6. Exit releases drawing references, callbacks, hooks and previews. It does
+   not unload native modules or keep an old model bound as a warm cache.
+7. Settings are closed by default and opened explicitly. Once opened, the
+   same window/position survives drawing start/stop; its button or X closes it.
+
+Host adapter changes
+- Struct forward declarations make early abort delegates resolve reliably.
+- Optional log/stat failures no longer abort required cleanup; stop returns
+  the actual cleanup result.
+- Existing native bridge uses SDK CommandModeChangedCallback plus a one-shot
+  deferred main-thread validation. No new modifier, service or Undo engine.
+- Session tokens and command ownership protect against stale callbacks and
+  delayed PBEndTrack applying to a new session/command.
+- Repeated select/current-stack assignment is skipped when already correct.
+- R1/R3 registration/teardown shares the final Core redraw instead of forcing
+  multiple full redraws per lifecycle transition.
+
+Verified in Max 2024.2, via main-thread native APIs, on owned test fixtures
+- Original source/preview/face/Undo regression: 81 checks, 0 failures.
+- TurboSmooth/OpenSubdiv base-object adapter: 108 checks, 0 failures.
+- Session lifecycle: 292 checks, 0 failures on final session3 candidate.
+- Settings UI: 13 checks, 0 failures; warm lifecycle/window: 13, 0 failures.
+- Static checks: lifecycle 21, UI 14, stack adapter 15; all passed.
+- Recompiled C++ rule tests: Step Build 121, visibility 71; all passed.
+- Final host state: MQD inactive, tracker inactive, lifecycle callbacks removed,
+  no open Hold transaction. Test objects retained; no user model opened.
+
+Warm timing sample (milliseconds; load / enter / exit)
+Before: 0 / 323 / 377; 0 / 288 / 294.
+After:  0 / 91 / 51; 0 / 83 / 41.
+Same 12x12 plane with TurboSmooth iterations 2, two samples per version.
+This is a bounded local timing comparison, not a complex-model performance claim.
+
+Native comparison and failed exploratory assertions
+- Native PolyDraw's first Rotate command ends drawing and returns to Move;
+  a second enters Rotate. MQD preserves this native behavior, and its later
+  cleanup does not override the second command.
+- Script-deleting an upper modifier without first selecting it is a different
+  path from the user workflow. It is not a requirement to keep MQD active.
+- Early assertions made before deferred events settled, and those two wrong
+  behavior assumptions, are retained in private run receipts. The final
+  matrix waits between phases and tests the confirmed user workflow.
+
+Reproduction
+- tests/max/MQD_SessionLifecycleTest.ms: start in an empty idle scene, setup(),
+  fresh #TurboSmooth or #OpenSubdiv, execute mutation and assertion in distinct
+  main-thread events. Let historyPending/contextPending settle before checking.
+- tests/max/MQD_WarmLifecycleTest.ms: run only on explicit MQD test fixtures.
+- tests/max/MQD_StackAdapterTest.ms: default empty scene; an integration runner
+  may pass an explicit list of its own earlier fixture nodes.
+- tests/max/MQD_SelfTest.ms retains empty-scene default. Optional explicit
+  fixture allowlist/root/report overrides support local candidate integration;
+  unlisted scene nodes still reject the run. Do not use user models as fixtures.
+
+Remaining acceptance limits
+- Real pointer-driven in-flight Move/Border/loop/Relax interruption, including
+  actual RMB hardware events, still needs focused interaction testing.
+- OpenSubdiv GPU display and Relax PointGather mismatch modes remain unqualified.
+- Complex-model copies, sustained usage, cold installation/rollback and
+  release acceptance remain separate gates. Automated counts do not prove
+  crash freedom or completeness of every gesture.
+- Existing installed files and GitHub release remain unchanged.
+
+Primary host evidence
+- Installed Max PolyTools.ms: PolyDrawStart / ToolToggle.
+- Max 2024 SDK maxapi.h: CommandModeChangedCallback registration/unregistration.
+- SDK EditablePoly Restore/Redo invalidation and original native Hold semantics.
+- https://help.autodesk.com/cloudhelp/2019/ENU/Max-Developer-Help/cpp_ref/class_command_mode_changed_callback.html
+- https://help.autodesk.com/cloudhelp/2024/ENU/MAXScript-Help/files/MAXScript-Tools-and-Interaction/Change-Handlers-and-Callbacks/General-Event-Callback-Mechanism/GUID-3C42A302-2746-4E88-A7D4-8B40F362B168.html
