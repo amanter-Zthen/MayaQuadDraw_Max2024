@@ -17,7 +17,7 @@ Confirm 'Position reads are numeric' ($core.Contains('[xText as integer,yText as
 Confirm 'Position file is MQD-specific' ($core.Contains('MayaQuadDraw_Max2024_UI.ini'))
 Confirm 'Position tracks window movement' ($core.Contains('on MayaQuadDrawUIRollout moved positionValue'))
 Confirm 'Close clears stale handle' ($core -match '(?s)on MayaQuadDrawUIRollout close do.*?MayaQuadDrawUIFloater = undefined')
-Confirm 'New window receives coordinates' ($core.Contains('(windowPos.y as integer) (windowPos.x as integer)'))
+Confirm 'New window receives host-verified coordinates' ($core.Contains('(windowPos.x as integer) (windowPos.y as integer)'))
 Confirm 'No forced floating or docking' (!$core.Contains('cui.RegisterDialogBar') -and !$core.Contains('cui.FloatDialogBar'))
 Confirm 'Settings action exists' ($macro.Contains('macroScript MayaQuadDrawMax2024Settings'))
 Confirm 'Settings action has correct global scope' ($macro.Contains('global MayaQuadDraw_Settings'))

@@ -216,9 +216,10 @@ fn MayaQuadDrawUI_Open =
     if not MayaQuadDrawUI_IsOpen() then
     (
         local windowPos = MayaQuadDrawUIPosition
-        -- Explicit top/left avoids Max's centered default. Max also brings
+        -- Explicit x/y matches the Max 2024 host probe (older docs reverse
+        -- these positional argument labels). Max also brings
         -- off-screen floaters back into view after monitor-layout changes.
-        MayaQuadDrawUIFloater = newRolloutFloater "MQD 参数设置" 202 148 (windowPos.y as integer) (windowPos.x as integer)
+        MayaQuadDrawUIFloater = newRolloutFloater "MQD 参数设置" 202 148 (windowPos.x as integer) (windowPos.y as integer)
         addRollout MayaQuadDrawUIRollout MayaQuadDrawUIFloater
         MayaQuadDrawUIPosition = MayaQuadDrawUIFloater.pos
     )

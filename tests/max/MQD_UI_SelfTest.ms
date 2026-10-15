@@ -1,6 +1,8 @@
 /* UI-only test. Run manually with MQD and its settings window closed.
    No scene objects, native plugins, trackers or modeling operations are started. */
 (
+    global MQD_UI_SelfTestQuiet
+    global MQD_UI_SelfTestResult
     global MayaQuadDraw_Load
     global MayaQuadDrawR6
     global MayaQuadDrawUIState
@@ -72,6 +74,7 @@
         checks += 1; checkValue "end result unchanged" (showEndResult == savedEndResult) failures
         checks += 1; checkValue "MQD remains inactive" (try (MayaQuadDrawR6 != undefined and not MayaQuadDrawR6.active) catch (false)) failures
         format "MQD UI checks=% failures=% details=%\n" checks failures.count failures
-        messageBox ("checks=" + (checks as string) + " failures=" + (failures.count as string) + "\n\n详细结果在 MAXScript 侦听器中。\n这项测试只检查界面，不验证细分修改器。") title:"MQD 界面自检"
+        MQD_UI_SelfTestResult = #(checks,failures.count,failures)
+        if MQD_UI_SelfTestQuiet != true do messageBox ("checks=" + (checks as string) + " failures=" + (failures.count as string) + "\n\n详细结果在 MAXScript 侦听器中。\n这项测试只检查界面，不验证细分修改器。") title:"MQD 界面自检"
     )
 )
