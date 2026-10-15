@@ -2,6 +2,8 @@
    No scene reset, undo-buffer clearing, or viewport changes. Empty scene only. */
 global MQDLayerSafetyTestDialog
 global MQDLayerSafetyTestReportPath
+global MQDLayerSafetyTestQuiet
+global MQDLayerSafetyTestResult
 global MayaQuadDrawRootPath
 global MayaQuadDrawR6
 global MayaQuadDrawR1
@@ -498,8 +500,9 @@ rollout MQDLayerSafetyTestDialog "MQD 分步自检" width:360 height:65
         if done then
         (
             local summary = "checks=" + checks as string + " failures=" + failures as string
+            MQDLayerSafetyTestResult = #(checks,failures,phase)
             destroyDialog MQDLayerSafetyTestDialog
-            messageBox ((if failures == 0 then "自动检查通过。" else "检查发现问题，结果日志已保存。") + "\n\n" + summary + "\n\n" + MQDLayerSafetyTestReportPath) title:"MQD 自检结果 v4"
+            if MQDLayerSafetyTestQuiet != true do messageBox ((if failures == 0 then "自动检查通过。" else "检查发现问题，结果日志已保存。") + "\n\n" + summary + "\n\n" + MQDLayerSafetyTestReportPath) title:"MQD 自检结果 v4"
         )
         else
         (

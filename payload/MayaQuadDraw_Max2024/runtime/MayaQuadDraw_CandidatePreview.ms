@@ -138,7 +138,7 @@ struct MayaQuadDrawR3State
     fn getWorldVertex nodeValue vertexIndex =
     (
         local result = undefined
-        try (in coordsys world (result = polyOp.getVert nodeValue vertexIndex)) catch (result = undefined)
+        try (in coordsys world (result = polyOp.getVert nodeValue.baseObject vertexIndex node:nodeValue)) catch (result = undefined)
         result
     ),
 
@@ -293,17 +293,17 @@ struct MayaQuadDrawR3State
     (
         local vertexBits = #{}
         vertexBits[vertexIndex] = true
-        local usingFaces = try (polyOp.getFacesUsingVert ownerNode vertexBits) catch (#{} )
+        local usingFaces = try (polyOp.getFacesUsingVert ownerNode.baseObject vertexBits) catch (#{} )
         if usingFaces.numberSet == 0 then #loose
         else
         (
-            local usingEdges = try (polyOp.getEdgesUsingVert ownerNode vertexBits) catch (#{} )
+            local usingEdges = try (polyOp.getEdgesUsingVert ownerNode.baseObject vertexBits) catch (#{} )
             local boundaryCount = 0
             for edgeIndex in usingEdges do
             (
                 local edgeBits = #{}
                 edgeBits[edgeIndex] = true
-                local edgeFaces = try (polyOp.getFacesUsingEdge ownerNode edgeBits) catch (#{} )
+                local edgeFaces = try (polyOp.getFacesUsingEdge ownerNode.baseObject edgeBits) catch (#{} )
                 if edgeFaces.numberSet == 1 do boundaryCount += 1
             )
             if boundaryCount > 0 then #boundary else #internalBlocked
@@ -339,13 +339,13 @@ struct MayaQuadDrawR3State
             gw.setTransform (matrix3 1)
             local winX = gw.getWinSizeX()
             local winY = gw.getWinSizeY()
-            local deadVerts = try (polyOp.getDeadVerts ownerNode) catch (#{} )
-            local liveIds = for i = 1 to (polyOp.getNumVerts ownerNode) where not deadVerts[i] collect i
+            local deadVerts = try (polyOp.getDeadVerts ownerNode.baseObject) catch (#{} )
+            local liveIds = for i = 1 to (polyOp.getNumVerts ownerNode.baseObject) where not deadVerts[i] collect i
             local surfaceIds = MayaQuadDrawR1.surfaceLayerIds liveIds
             local facingIds = stepBuildCandidateIds ownerNode (surfaceIds as array)
             local sourceIds = stepBuildCandidateIds ownerNode (surfaceIds as array) sourceOnly:true
 
-            for vertexIndex = 1 to (polyOp.getNumVerts ownerNode) where surfaceIds[vertexIndex] do
+            for vertexIndex = 1 to (polyOp.getNumVerts ownerNode.baseObject) where surfaceIds[vertexIndex] do
             (
                 local worldPoint = getWorldVertex ownerNode vertexIndex
                 if worldPoint != undefined do
@@ -386,13 +386,13 @@ struct MayaQuadDrawR3State
     fn faceAlreadyExists ownerNode candidateBits =
     (
         local found = false
-        local deadFaces = try (polyOp.getDeadFaces ownerNode) catch (#{} )
-        for faceIndex = 1 to (polyOp.getNumFaces ownerNode) while not found do
+        local deadFaces = try (polyOp.getDeadFaces ownerNode.baseObject) catch (#{} )
+        for faceIndex = 1 to (polyOp.getNumFaces ownerNode.baseObject) while not found do
         (
             if not deadFaces[faceIndex] do
             (
                 local faceBits = #{}
-                local faceVerts = try (polyOp.getFaceVerts ownerNode faceIndex) catch (#())
+                local faceVerts = try (polyOp.getFaceVerts ownerNode.baseObject faceIndex) catch (#())
                 for vertexIndex in faceVerts do faceBits[vertexIndex] = true
                 if faceBits == candidateBits do found = true
             )
@@ -406,13 +406,13 @@ struct MayaQuadDrawR3State
         local bitsB = #{}
         bitsA[vertexA] = true
         bitsB[vertexB] = true
-        local edgesA = try (polyOp.getEdgesUsingVert ownerNode bitsA) catch (#{} )
-        local edgesB = try (polyOp.getEdgesUsingVert ownerNode bitsB) catch (#{} )
+        local edgesA = try (polyOp.getEdgesUsingVert ownerNode.baseObject bitsA) catch (#{} )
+        local edgesB = try (polyOp.getEdgesUsingVert ownerNode.baseObject bitsB) catch (#{} )
         local sharedEdges = edgesA*edgesB
         if sharedEdges.numberSet == 0 then 0
         else
         (
-            local usingFaces = try (polyOp.getFacesUsingEdge ownerNode sharedEdges) catch (#{} )
+            local usingFaces = try (polyOp.getFacesUsingEdge ownerNode.baseObject sharedEdges) catch (#{} )
             usingFaces.numberSet
         )
     ),
@@ -421,13 +421,13 @@ struct MayaQuadDrawR3State
     (
         -- Native Step Build rejects three or more proposed vertices on one
         -- existing face, even when the two shared sides are boundary edges.
-        local adjacentFaces = try (polyOp.getFacesUsingVert ownerNode candidateBits) catch (#{} )
-        local deadFaces = try (polyOp.getDeadFaces ownerNode) catch (#{} )
+        local adjacentFaces = try (polyOp.getFacesUsingVert ownerNode.baseObject candidateBits) catch (#{} )
+        local deadFaces = try (polyOp.getDeadFaces ownerNode.baseObject) catch (#{} )
         local found = false
         for faceIndex in adjacentFaces while not found where not deadFaces[faceIndex] do
         (
             local faceBits = #{}
-            for vertexIndex in (polyOp.getFaceVerts ownerNode faceIndex) do faceBits[vertexIndex] = true
+            for vertexIndex in (polyOp.getFaceVerts ownerNode.baseObject faceIndex) do faceBits[vertexIndex] = true
             if (faceBits*candidateBits).numberSet >= 3 do found = true
         )
         found
@@ -439,8 +439,8 @@ struct MayaQuadDrawR3State
         local bitsB = #{}
         bitsA[vertexA] = true
         bitsB[vertexB] = true
-        local edgesA = try (polyOp.getEdgesUsingVert ownerNode bitsA) catch (#{} )
-        local edgesB = try (polyOp.getEdgesUsingVert ownerNode bitsB) catch (#{} )
+        local edgesA = try (polyOp.getEdgesUsingVert ownerNode.baseObject bitsA) catch (#{} )
+        local edgesB = try (polyOp.getEdgesUsingVert ownerNode.baseObject bitsB) catch (#{} )
         local sharedEdges = edgesA*edgesB
         local result = 0
         for edgeIndex in sharedEdges while result == 0 do result = edgeIndex
@@ -454,7 +454,7 @@ struct MayaQuadDrawR3State
 
     fn faceDirectedEdgeSign ownerNode faceIndex vertexA vertexB =
     (
-        local faceVerts = try (polyOp.getFaceVerts ownerNode faceIndex) catch (#())
+        local faceVerts = try (polyOp.getFaceVerts ownerNode.baseObject faceIndex) catch (#())
         local result = 0
         for vertexPosition = 1 to faceVerts.count while result == 0 do
         (
@@ -477,8 +477,8 @@ struct MayaQuadDrawR3State
             local bitsB = #{}
             bitsA[vertexA] = true
             bitsB[vertexB] = true
-            local facesA = try (polyOp.getFacesUsingVert ownerNode bitsA) catch (#{} )
-            local facesB = try (polyOp.getFacesUsingVert ownerNode bitsB) catch (#{} )
+            local facesA = try (polyOp.getFacesUsingVert ownerNode.baseObject bitsA) catch (#{} )
+            local facesB = try (polyOp.getFacesUsingVert ownerNode.baseObject bitsB) catch (#{} )
             local sharedFaces = facesA*facesB
             local cutsFace = false
 
@@ -503,7 +503,7 @@ struct MayaQuadDrawR3State
             (
                 local edgeBits = #{}
                 edgeBits[edgeIndex] = true
-                local edgeFaces = try (polyOp.getFacesUsingEdge ownerNode edgeBits) catch (#{} )
+                local edgeFaces = try (polyOp.getFacesUsingEdge ownerNode.baseObject edgeBits) catch (#{} )
                 if edgeFaces.numberSet == 1 do
                 (
                     local faceIndex = 0
@@ -601,7 +601,7 @@ struct MayaQuadDrawR3State
             local planeTolerance = amax 0.0001 (candidateScale*0.035)
             local crossTolerance = amax 0.000001 (candidateScale*candidateScale*0.00001)
             local localCandidate = for worldPoint in orderedWorld collect (projectToCandidateFrame worldPoint frameValue)
-            local deadEdges = try (polyOp.getDeadEdges ownerNode) catch (#{} )
+            local deadEdges = try (polyOp.getDeadEdges ownerNode.baseObject) catch (#{} )
             local found = false
             local pointCount = orderedIds.count
 
@@ -612,9 +612,9 @@ struct MayaQuadDrawR3State
                 local sideBId = orderedIds[nextSideIndex]
                 if not edgeExists ownerNode sideAId sideBId do
                 (
-                    for edgeIndex = 1 to (polyOp.getNumEdges ownerNode) while not found where not deadEdges[edgeIndex] do
+                    for edgeIndex = 1 to (polyOp.getNumEdges ownerNode.baseObject) while not found where not deadEdges[edgeIndex] do
                     (
-                        local edgeVerts = try (polyOp.getEdgeVerts ownerNode edgeIndex) catch (#())
+                        local edgeVerts = try (polyOp.getEdgeVerts ownerNode.baseObject edgeIndex) catch (#())
                         if edgeVerts.count == 2 and edgeVerts[1] != sideAId and edgeVerts[2] != sideAId and edgeVerts[1] != sideBId and edgeVerts[2] != sideBId do
                         (
                             local edgeWorldA = getWorldVertex ownerNode edgeVerts[1]
@@ -884,7 +884,7 @@ struct MayaQuadDrawR3State
 
     fn candidateContainsEdge ownerNode orderedIds edgeIndex =
     (
-        local edgeVerts = try (polyOp.getEdgeVerts ownerNode edgeIndex) catch (#())
+        local edgeVerts = try (polyOp.getEdgeVerts ownerNode.baseObject edgeIndex) catch (#())
         if edgeVerts.count != 2 then false
         else
         (

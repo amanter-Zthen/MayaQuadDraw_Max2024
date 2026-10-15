@@ -21,7 +21,7 @@ fn MayaQuadDraw_Load =
     )
     else
     (
-        local alreadyLoaded = try (MayaQuadDrawInstalledRuntimeVersion == "1.0.0-max2024-v20-ui1") catch (false)
+        local alreadyLoaded = try (MayaQuadDrawInstalledRuntimeVersion == "1.0.0-max2024-v20-stack1") catch (false)
         if alreadyLoaded then true
         else
         (

@@ -40,6 +40,7 @@ namespace
             return nullptr;
         }
         Object* object = node->GetObjectRef();
+        object = object != nullptr ? object->FindBaseObject() : nullptr;
         return object != nullptr
             ? static_cast<EPoly*>(object->GetInterface(EPOLY_INTERFACE))
             : nullptr;
@@ -1060,7 +1061,7 @@ def_visible_primitive(MQDInternalRelaxV20Status, "MQDInternalRelaxV20Status");
 Value* MQDInternalRelaxV20Version_cf(Value**, int count)
 {
     check_arg_count(MQDInternalRelaxV20Version, 0, count);
-    return new String(_T("0.20.0-max2024-sdk-paint-deform-dense-stroke"));
+    return new String(_T("0.20.1-max2024-sdk-paint-deform-base-object"));
 }
 
 Value* MQDInternalRelaxV20Begin_cf(Value** argList, int count)

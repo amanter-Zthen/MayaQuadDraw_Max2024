@@ -190,7 +190,7 @@ struct MayaQuadDrawR1State
     fn getWorldVertex nodeValue vertexIndex =
     (
         local result = undefined
-        try (in coordsys world (result = polyOp.getVert nodeValue vertexIndex)) catch (result = undefined)
+        try (in coordsys world (result = polyOp.getVert nodeValue.baseObject vertexIndex node:nodeValue)) catch (result = undefined)
         result
     ),
 
@@ -268,7 +268,7 @@ struct MayaQuadDrawR1State
     (
         local edgeSet = #{}
         edgeSet[edgeIndex] = true
-        local usingFaces = try (polyOp.getFacesUsingEdge ownerNode edgeSet) catch (#{} )
+        local usingFaces = try (polyOp.getFacesUsingEdge ownerNode.baseObject edgeSet) catch (#{} )
         if usingFaces.numberSet == 1 then #boundaryEdge
         else if usingFaces.numberSet >= 2 then #interiorEdge
         else #boundaryEdge
@@ -298,10 +298,10 @@ struct MayaQuadDrawR1State
                 )
                 else
                 (
-                    local vertexCount = polyOp.getNumVerts ownerNode
+                    local vertexCount = polyOp.getNumVerts ownerNode.baseObject
                     local worldCache = for i = 1 to vertexCount collect undefined
                     local screenCache = for i = 1 to vertexCount collect undefined
-                    local deadVerts = try (polyOp.getDeadVerts ownerNode) catch (#{} )
+                    local deadVerts = try (polyOp.getDeadVerts ownerNode.baseObject) catch (#{} )
                     local liveIds = for i = 1 to vertexCount where not deadVerts[i] collect i
                     local surfaceIds = surfaceLayerIds liveIds
 
@@ -342,15 +342,15 @@ struct MayaQuadDrawR1State
                     )
                     else
                     (
-                        local edgeCount = polyOp.getNumEdges ownerNode
-                        local deadEdges = try (polyOp.getDeadEdges ownerNode) catch (#{} )
+                        local edgeCount = polyOp.getNumEdges ownerNode.baseObject
+                        local deadEdges = try (polyOp.getDeadEdges ownerNode.baseObject) catch (#{} )
                         local bestEdge = 0
                         local bestEdgeDist = 1.0e20
                         local bestEdgeWorld = #()
 
                         for edgeIndex = 1 to edgeCount where not deadEdges[edgeIndex] do
                         (
-                            local edgeVerts = try (polyOp.getEdgeVerts ownerNode edgeIndex) catch (undefined)
+                            local edgeVerts = try (polyOp.getEdgeVerts ownerNode.baseObject edgeIndex) catch (undefined)
                             if edgeVerts != undefined do
                             (
                                 local aIndex = edgeVerts[1] as integer
@@ -375,15 +375,15 @@ struct MayaQuadDrawR1State
                         )
                         else
                         (
-                            local faceCount = polyOp.getNumFaces ownerNode
-                            local deadFaces = try (polyOp.getDeadFaces ownerNode) catch (#{} )
+                            local faceCount = polyOp.getNumFaces ownerNode.baseObject
+                            local deadFaces = try (polyOp.getDeadFaces ownerNode.baseObject) catch (#{} )
                             local bestFace = 0
                             local bestFaceDepth = 1.0e20
                             local bestFaceWorld = #()
 
                             for faceIndex = 1 to faceCount where not deadFaces[faceIndex] do
                             (
-                                local faceVerts = try (polyOp.getFaceVerts ownerNode faceIndex) catch (undefined)
+                                local faceVerts = try (polyOp.getFaceVerts ownerNode.baseObject faceIndex) catch (undefined)
                                 if faceVerts != undefined and faceVerts.count >= 3 do
                                 (
                                     local polygon2D = #()

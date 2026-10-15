@@ -100,6 +100,9 @@ namespace
             return nullptr;
         }
         Object* object = node->GetObjectRef();
+        // Use Max's documented base-object resolver. The derived object owns
+        // the modifier stack, not the Editable Poly control mesh/interface.
+        object = object != nullptr ? object->FindBaseObject() : nullptr;
         return object != nullptr
             ? static_cast<EPoly*>(object->GetInterface(EPOLY_INTERFACE))
             : nullptr;

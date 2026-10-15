@@ -64,7 +64,7 @@ global MayaQuadDrawR16_PainterResume
 global MayaQuadDrawRootPath
 global MayaQuadDrawInstalledRuntimeVersion
 
-MayaQuadDrawInstalledRuntimeVersion = "1.0.0-max2024-v20-ui1"
+MayaQuadDrawInstalledRuntimeVersion = "1.0.0-max2024-v20-stack1"
 
 try (if MayaQuadDrawR6 != undefined and MayaQuadDrawR6.active do MayaQuadDrawR6.stopManual()) catch()
 
@@ -295,6 +295,8 @@ struct MayaQuadDrawR6State
     savedSelection = #(),
     savedCommandPanelMode = undefined,
     savedSubObjectLevel = undefined,
+    savedStackObject = undefined,
+    savedShowEndResult = undefined,
     savedOwnerVertexTicks = undefined,
     savedPDDrawtype = undefined,
     savedPDAutoWeld = undefined,
@@ -336,9 +338,9 @@ struct MayaQuadDrawR6State
         if not isValidNode ownerNode then "V=<invalid> E=<invalid> F=<invalid>"
         else
         (
-            "V=" + (polyOp.getNumVerts ownerNode as string) +
-            " E=" + (polyOp.getNumEdges ownerNode as string) +
-            " F=" + (polyOp.getNumFaces ownerNode as string)
+            "V=" + (polyOp.getNumVerts ownerNode.baseObject as string) +
+            " E=" + (polyOp.getNumEdges ownerNode.baseObject as string) +
+            " F=" + (polyOp.getNumFaces ownerNode.baseObject as string)
         )
     ),
 
@@ -384,13 +386,13 @@ struct MayaQuadDrawR6State
         if not isValidNode ownerNode then #(0,0,0)
         else
         (
-            local deadVerts = try (polyOp.getDeadVerts ownerNode) catch (#{} )
-            local deadEdges = try (polyOp.getDeadEdges ownerNode) catch (#{} )
-            local deadFaces = try (polyOp.getDeadFaces ownerNode) catch (#{} )
+            local deadVerts = try (polyOp.getDeadVerts ownerNode.baseObject) catch (#{} )
+            local deadEdges = try (polyOp.getDeadEdges ownerNode.baseObject) catch (#{} )
+            local deadFaces = try (polyOp.getDeadFaces ownerNode.baseObject) catch (#{} )
             #(
-                (polyOp.getNumVerts ownerNode)-deadVerts.numberSet,
-                (polyOp.getNumEdges ownerNode)-deadEdges.numberSet,
-                (polyOp.getNumFaces ownerNode)-deadFaces.numberSet
+                (polyOp.getNumVerts ownerNode.baseObject)-deadVerts.numberSet,
+                (polyOp.getNumEdges ownerNode.baseObject)-deadEdges.numberSet,
+                (polyOp.getNumFaces ownerNode.baseObject)-deadFaces.numberSet
             )
         )
     ),
@@ -521,22 +523,22 @@ struct MayaQuadDrawR6State
                         #vertex:
                         (
                             operationName = "Vertex"
-                            nativeResult = polyOp.deleteVerts ownerNode (makeBits #(indexValue))
+                            nativeResult = polyOp.deleteVerts ownerNode.baseObject (makeBits #(indexValue))
                         )
                         #boundaryEdge:
                         (
                             operationName = "Edge"
-                            nativeResult = polyOp.deleteEdges ownerNode (makeBits #(indexValue)) delIsoVerts:true
+                            nativeResult = polyOp.deleteEdges ownerNode.baseObject (makeBits #(indexValue)) delIsoVerts:true
                         )
                         #interiorEdge:
                         (
                             operationName = "Edge"
-                            nativeResult = polyOp.deleteEdges ownerNode (makeBits #(indexValue)) delIsoVerts:true
+                            nativeResult = polyOp.deleteEdges ownerNode.baseObject (makeBits #(indexValue)) delIsoVerts:true
                         )
                         #face:
                         (
                             operationName = "Face"
-                            nativeResult = polyOp.deleteFaces ownerNode (makeBits #(indexValue)) delIsoVerts:true
+                            nativeResult = polyOp.deleteFaces ownerNode.baseObject (makeBits #(indexValue)) delIsoVerts:true
                         )
                     )
                     update ownerNode
@@ -606,9 +608,9 @@ struct MayaQuadDrawR6State
                 appendLog "Direct face blocked: safe native creation unavailable"
                 return false
             )
-            local beforeVerts = polyOp.getNumVerts ownerNode
-            local beforeEdges = polyOp.getNumEdges ownerNode
-            local beforeFaces = polyOp.getNumFaces ownerNode
+            local beforeVerts = polyOp.getNumVerts ownerNode.baseObject
+            local beforeEdges = polyOp.getNumEdges ownerNode.baseObject
+            local beforeFaces = polyOp.getNumFaces ownerNode.baseObject
             local nativeResult = undefined
             local exceptionText = "none"
 
@@ -632,9 +634,9 @@ struct MayaQuadDrawR6State
             )
             catch (exceptionText = getCurrentException())
 
-            local afterVerts = polyOp.getNumVerts ownerNode
-            local afterEdges = polyOp.getNumEdges ownerNode
-            local afterFaces = polyOp.getNumFaces ownerNode
+            local afterVerts = polyOp.getNumVerts ownerNode.baseObject
+            local afterEdges = polyOp.getNumEdges ownerNode.baseObject
+            local afterFaces = polyOp.getNumFaces ownerNode.baseObject
             local successValue = nativeResult != undefined and afterVerts == beforeVerts and afterFaces == beforeFaces+1
             if successValue do
             (
@@ -650,7 +652,7 @@ struct MayaQuadDrawR6State
             line += " faceDelta=" + ((afterFaces-beforeFaces) as string) + " edgeDelta=" + ((afterEdges-beforeEdges) as string)
             line += " exception=" + exceptionText
             line += " orderedIds=" + (orderedIds as string) + " commitPath=stepbuild-exact-preview"
-            if successValue do line += " actualIds=" + ((polyOp.getFaceVerts ownerNode nativeResult) as string)
+            if successValue do line += " actualIds=" + ((polyOp.getFaceVerts ownerNode.baseObject nativeResult) as string)
             line += " time=" + (localTime as string)
             appendLog line
             format "MQD R16: %\n" line
@@ -663,9 +665,9 @@ struct MayaQuadDrawR6State
 
     fn nativePointCommit eventValue shiftValue ctrlValue altValue =
     (
-        local beforeVerts = polyOp.getNumVerts ownerNode
-        local beforeEdges = polyOp.getNumEdges ownerNode
-        local beforeFaces = polyOp.getNumFaces ownerNode
+        local beforeVerts = polyOp.getNumVerts ownerNode.baseObject
+        local beforeEdges = polyOp.getNumEdges ownerNode.baseObject
+        local beforeFaces = polyOp.getNumFaces ownerNode.baseObject
         local nativeResult = #continue
         local exceptionText = "none"
 
@@ -677,9 +679,9 @@ struct MayaQuadDrawR6State
         )
         update ownerNode
 
-        local afterVerts = polyOp.getNumVerts ownerNode
-        local afterEdges = polyOp.getNumEdges ownerNode
-        local afterFaces = polyOp.getNumFaces ownerNode
+        local afterVerts = polyOp.getNumVerts ownerNode.baseObject
+        local afterEdges = polyOp.getNumEdges ownerNode.baseObject
+        local afterFaces = polyOp.getNumFaces ownerNode.baseObject
         local successValue = afterVerts == beforeVerts+1 and afterEdges == beforeEdges and afterFaces == beforeFaces
         if successValue then pointCommits += 1
 
@@ -751,19 +753,19 @@ struct MayaQuadDrawR6State
                 (
                     local edges = #{}
                     edges[indexValue] = true
-                    result = try (polyOp.getVertsUsingEdge ownerNode edges) catch (#{} )
+                    result = try (polyOp.getVertsUsingEdge ownerNode.baseObject edges) catch (#{} )
                 )
                 #interiorEdge:
                 (
                     local edges = #{}
                     edges[indexValue] = true
-                    result = try (polyOp.getVertsUsingEdge ownerNode edges) catch (#{} )
+                    result = try (polyOp.getVertsUsingEdge ownerNode.baseObject edges) catch (#{} )
                 )
                 #face:
                 (
                     local faces = #{}
                     faces[indexValue] = true
-                    result = try (polyOp.getVertsUsingFace ownerNode faces) catch (#{} )
+                    result = try (polyOp.getVertsUsingFace ownerNode.baseObject faces) catch (#{} )
                 )
             )
             result
@@ -776,7 +778,7 @@ struct MayaQuadDrawR6State
         local count = 0
         for vertexIndex in vertices do
         (
-            local pointValue = try (polyOp.getVert ownerNode vertexIndex) catch (undefined)
+            local pointValue = try (polyOp.getVert ownerNode.baseObject vertexIndex node:ownerNode) catch (undefined)
             if pointValue != undefined do
             (
                 center += pointValue
@@ -824,8 +826,8 @@ struct MayaQuadDrawR6State
             local thresholdSq = threshold * threshold
             local bestVertex = 0
             local bestDistanceSq = thresholdSq + 0.0001
-            local vertexCount = polyOp.getNumVerts ownerNode
-            local deadVerts = try (polyOp.getDeadVerts ownerNode) catch (#{} )
+            local vertexCount = polyOp.getNumVerts ownerNode.baseObject
+            local deadVerts = try (polyOp.getDeadVerts ownerNode.baseObject) catch (#{} )
             local liveIds = for i = 1 to vertexCount where i != movedVertex and not deadVerts[i] collect i
             local surfaceIds = MayaQuadDrawR1.surfaceLayerIds liveIds
 
@@ -860,7 +862,7 @@ struct MayaQuadDrawR6State
         if targetVertex <= 0 then #(false, 0, screenDistance, false, "none")
         else
         (
-            local beforeVerts = polyOp.getNumVerts ownerNode
+            local beforeVerts = polyOp.getNumVerts ownerNode.baseObject
             local targetWorld = MayaQuadDrawR1.getWorldVertex ownerNode targetVertex
             local weldResult = false
             local exceptionText = "none"
@@ -868,12 +870,12 @@ struct MayaQuadDrawR6State
             (
                 in coordsys world
                 (
-                    weldResult = polyOp.weldVerts ownerNode movedVertex targetVertex targetWorld node:ownerNode
+                    weldResult = polyOp.weldVerts ownerNode.baseObject movedVertex targetVertex targetWorld node:ownerNode
                 )
             )
             catch (exceptionText = getCurrentException())
             update ownerNode
-            local afterVerts = polyOp.getNumVerts ownerNode
+            local afterVerts = polyOp.getNumVerts ownerNode.baseObject
             local successValue = afterVerts == beforeVerts - 1
             if successValue do
             (
@@ -895,9 +897,9 @@ struct MayaQuadDrawR6State
         moveStartVertex = if moveStartLevel == #vertex then moveStartIndex else 0
         moveAffectedVerts = affectedVertsForMove moveStartLevel moveStartIndex
         moveMoveEvents = 0
-        moveBeforeVerts = polyOp.getNumVerts ownerNode
-        moveBeforeEdges = polyOp.getNumEdges ownerNode
-        moveBeforeFaces = polyOp.getNumFaces ownerNode
+        moveBeforeVerts = polyOp.getNumVerts ownerNode.baseObject
+        moveBeforeEdges = polyOp.getNumEdges ownerNode.baseObject
+        moveBeforeFaces = polyOp.getNumFaces ownerNode.baseObject
         moveStartPosition = centerOfVerts moveAffectedVerts
         MayaQuadDrawR3.clearCandidate ((moveLevelName moveStartLevel) + " drag routed to native Move")
         statusText = (moveLevelName moveStartLevel) + " move armed on " + (moveStartIndex as string)
@@ -907,16 +909,16 @@ struct MayaQuadDrawR6State
 
     fn finishMoveGesture nativeResult exceptionText =
     (
-        local preWeldVerts = polyOp.getNumVerts ownerNode
-        local preWeldEdges = polyOp.getNumEdges ownerNode
-        local preWeldFaces = polyOp.getNumFaces ownerNode
+        local preWeldVerts = polyOp.getNumVerts ownerNode.baseObject
+        local preWeldEdges = polyOp.getNumEdges ownerNode.baseObject
+        local preWeldFaces = polyOp.getNumFaces ownerNode.baseObject
         local endPosition = centerOfVerts moveAffectedVerts
         local moveDistance = distance moveStartPosition endPosition
         local weldInfo = if moveStartLevel == #vertex and moveDistance > 0.00001 and preWeldVerts == moveBeforeVerts then tryAutoWeld moveStartVertex else #(false, 0, 1.0e20, false, "skipped")
         local welded = weldInfo[1]
-        local afterVerts = polyOp.getNumVerts ownerNode
-        local afterEdges = polyOp.getNumEdges ownerNode
-        local afterFaces = polyOp.getNumFaces ownerNode
+        local afterVerts = polyOp.getNumVerts ownerNode.baseObject
+        local afterEdges = polyOp.getNumEdges ownerNode.baseObject
+        local afterFaces = polyOp.getNumFaces ownerNode.baseObject
         local topologyStable = afterVerts == moveBeforeVerts and afterEdges == moveBeforeEdges and afterFaces == moveBeforeFaces
         local successValue = (topologyStable and moveDistance > 0.00001) or welded
         if successValue do
@@ -961,9 +963,9 @@ struct MayaQuadDrawR6State
         borderLoopGesture = loopValue
         borderStartEdge = lastFreeHoverIndex
         borderMoveEvents = 0
-        borderBeforeVerts = polyOp.getNumVerts ownerNode
-        borderBeforeEdges = polyOp.getNumEdges ownerNode
-        borderBeforeFaces = polyOp.getNumFaces ownerNode
+        borderBeforeVerts = polyOp.getNumVerts ownerNode.baseObject
+        borderBeforeEdges = polyOp.getNumEdges ownerNode.baseObject
+        borderBeforeFaces = polyOp.getNumFaces ownerNode.baseObject
         MayaQuadDrawR3.clearCandidate (if borderLoopGesture then "Boundary-loop drag routed to native Border" else "Boundary drag routed to native Border")
         statusText = (if borderLoopGesture then "Boundary-loop extension armed on edge " else "Border extension armed on edge ") + (borderStartEdge as string)
         appendLog (statusText + " before=" + countsText())
@@ -972,9 +974,9 @@ struct MayaQuadDrawR6State
 
     fn finishBorderGesture nativeResult exceptionText =
     (
-        local afterVerts = polyOp.getNumVerts ownerNode
-        local afterEdges = polyOp.getNumEdges ownerNode
-        local afterFaces = polyOp.getNumFaces ownerNode
+        local afterVerts = polyOp.getNumVerts ownerNode.baseObject
+        local afterEdges = polyOp.getNumEdges ownerNode.baseObject
+        local afterFaces = polyOp.getNumFaces ownerNode.baseObject
         local faceDelta = afterFaces-borderBeforeFaces
         local edgeDelta = afterEdges-borderBeforeEdges
         local vertDelta = afterVerts-borderBeforeVerts
@@ -1005,7 +1007,7 @@ struct MayaQuadDrawR6State
     fn firstLiveFaceFromSet faceBits =
     (
         local result = 0
-        local deadFaces = try (polyOp.getDeadFaces ownerNode) catch (#{} )
+        local deadFaces = try (polyOp.getDeadFaces ownerNode.baseObject) catch (#{} )
         for faceIndex in faceBits do
         (
             if result == 0 and faceIndex > 0 and not deadFaces[faceIndex] do result = faceIndex
@@ -1016,17 +1018,17 @@ struct MayaQuadDrawR6State
     fn firstLiveFaceUsingComponent componentKind componentIndex =
     (
         local result = 0
-        local faceCount = try (polyOp.getNumFaces ownerNode) catch (0)
-        local deadFaces = try (polyOp.getDeadFaces ownerNode) catch (#{} )
+        local faceCount = try (polyOp.getNumFaces ownerNode.baseObject) catch (0)
+        local deadFaces = try (polyOp.getDeadFaces ownerNode.baseObject) catch (#{} )
         for faceIndex = 1 to faceCount while result == 0 do
         (
             if not deadFaces[faceIndex] do
             (
                 local components =
                     if componentKind == #edge then
-                        (try (polyOp.getFaceEdges ownerNode faceIndex) catch (#()))
+                        (try (polyOp.getFaceEdges ownerNode.baseObject faceIndex) catch (#()))
                     else
-                        (try (polyOp.getFaceVerts ownerNode faceIndex) catch (#()))
+                        (try (polyOp.getFaceVerts ownerNode.baseObject faceIndex) catch (#()))
                 local containsComponent =
                     if isKindOf components BitArray then
                         components[componentIndex]
@@ -1562,6 +1564,8 @@ struct MayaQuadDrawR6State
         savedSelection = for currentNode in selection collect currentNode
         savedCommandPanelMode = try (getCommandPanelTaskMode()) catch (undefined)
         savedSubObjectLevel = try (subObjectLevel) catch (undefined)
+        savedStackObject = if savedCommandPanelMode == #modify then (try (modPanel.getCurrentObject()) catch (undefined)) else undefined
+        savedShowEndResult = try (showEndResult) catch (undefined)
         savedOwnerVertexTicks = try (ownerNode.vertexTicks) catch (undefined)
         savedPDDrawtype = try (PolyToolsUI.PDDrawtype) catch (undefined)
         savedPDAutoWeld = try (PolyToolsUI.PDAutoWeld) catch (undefined)
@@ -1593,7 +1597,10 @@ struct MayaQuadDrawR6State
             catch()
 
             if savedCommandPanelMode != undefined do try (setCommandPanelTaskMode mode:savedCommandPanelMode) catch()
+            if savedCommandPanelMode == #modify and savedStackObject != undefined and isValidNode ownerNode do
+                try (modPanel.setCurrentObject savedStackObject node:ownerNode) catch()
             if savedCommandPanelMode == #modify and savedSubObjectLevel != undefined do try (subObjectLevel = savedSubObjectLevel) catch()
+            if savedShowEndResult != undefined do try (showEndResult = savedShowEndResult) catch()
 
             appendLog ("launchState restored reason=" + reasonText + " panel=" + (savedCommandPanelMode as string) +
                 " subObject=" + (savedSubObjectLevel as string) + " vertexTicks=" + (savedOwnerVertexTicks as string))
@@ -1765,6 +1772,10 @@ struct MayaQuadDrawR6State
             registrationReady = registrationReady and strictCommitFn != undefined and stepBuildSourceFn != undefined
             registrationReady = registrationReady and versionFn != undefined and setDelegatesFn != undefined and trackFn != undefined and countFn != undefined and resetFn != undefined and removeHookFn != undefined and setMoveHintFn != undefined and shiftDownFn != undefined
             registrationReady = registrationReady and internalRelaxVersionFn != undefined and relaxBeginFn != undefined and relaxStepFn != undefined and relaxEndFn != undefined and relaxCancelFn != undefined and relaxStatusFn != undefined
+            -- A session with old loaded DLLs must not mix evaluated-mesh and
+            -- base-object adapters. Restart is required to activate new DLLs.
+            registrationReady = registrationReady and (try (v16VersionFn() == "0.17.7-max2024-v16-base-object") catch (false))
+            registrationReady = registrationReady and (try (internalRelaxVersionFn() == "0.20.1-max2024-sdk-paint-deform-base-object") catch (false))
 
             appendLog ("plugin.load=" + (loadResult as string))
             appendLog ("internalRelax.plugin.load=" + (internalRelaxLoadResult as string))
@@ -1800,12 +1811,16 @@ struct MayaQuadDrawR6State
             try (PBo_Pickobject = targetNode) catch()
             select ownerNode
             max modify mode
+            modPanel.setCurrentObject ownerNode.baseObject node:ownerNode
             try (subObjectLevel = 0) catch()
+            if ownerNode.modifiers.count > 0 do showEndResult = true
             try (PolyBoost.PolyDrawStart 1) catch (appendLog ("official.start.exception=" + getCurrentException()))
             try (PBEndTrack()) catch()
             try (PolyBDrawNodeInit targetNode) catch (appendLog ("surface.reinit.exception=" + getCurrentException()))
             try (subObjectLevel = 1) catch()
-            try (ownerNode.vertexTicks = true) catch()
+            -- At vertex level Max draws the editable control cage itself.
+            -- Node-level ticks would additionally mark the subdivided output.
+            try (ownerNode.vertexTicks = (ownerNode.modifiers.count == 0)) catch()
             try (PolyToolsUI.PDTool = 1) catch()
 
             if not MayaQuadDrawR1.prepare() then

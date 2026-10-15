@@ -23,5 +23,5 @@ Confirm 'Settings action exists' ($macro.Contains('macroScript MayaQuadDrawMax20
 Confirm 'Settings action has correct global scope' ($macro.Contains('global MayaQuadDraw_Settings'))
 Confirm 'Settings loader does not launch modeling' ($startup -match '(?s)fn MayaQuadDraw_Settings =\s*\(\s*global MayaQuadDrawUI_Toggle\s*if MayaQuadDraw_Load\(\) then MayaQuadDrawUI_Toggle\(\) else false\s*\)')
 $runtimeVersion = [regex]::Match($core, 'MayaQuadDrawInstalledRuntimeVersion = "([^"]+)"').Groups[1].Value
-Confirm 'Startup and Core identity match' ($runtimeVersion -eq '1.0.0-max2024-v20-ui1' -and $startup.Contains('== "'+$runtimeVersion+'"'))
+Confirm 'Startup and Core identity match' ($runtimeVersion -ne '' -and $startup.Contains('== "'+$runtimeVersion+'"'))
 Write-Output "UI static checks=$checks failures=0. Max runtime UI behavior still requires the manual UI self-test."
