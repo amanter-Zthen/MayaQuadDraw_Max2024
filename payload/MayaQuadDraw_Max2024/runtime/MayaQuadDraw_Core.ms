@@ -54,12 +54,17 @@ global MayaQuadDrawUIFloater
 global MayaQuadDrawUIRollout
 global MayaQuadDrawUI_Open
 global MayaQuadDrawUI_Close
+global MayaQuadDrawUI_IsOpen
+global MayaQuadDrawUI_Toggle
+global MayaQuadDrawUIPosition
+global MayaQuadDrawUI_ReadPosition
+global MayaQuadDrawUI_SavePosition
 global MayaQuadDrawR16_PainterActivate
 global MayaQuadDrawR16_PainterResume
 global MayaQuadDrawRootPath
 global MayaQuadDrawInstalledRuntimeVersion
 
-MayaQuadDrawInstalledRuntimeVersion = "1.0.0-max2024-v20"
+MayaQuadDrawInstalledRuntimeVersion = "1.0.0-max2024-v20-ui1"
 
 try (if MayaQuadDrawR6 != undefined and MayaQuadDrawR6.active do MayaQuadDrawR6.stopManual()) catch()
 
@@ -124,6 +129,44 @@ catch()
 MayaQuadDrawUIFloater = undefined
 MayaQuadDrawUIState = MayaQuadDrawUIStateStruct()
 
+fn MayaQuadDrawUI_ReadPosition =
+(
+    -- Only UI coordinates are stored here; no scene state or executable text.
+    local positionValue = [32,160]
+    local settingsPath = (getDir #plugcfg) + "\\MayaQuadDraw_Max2024_UI.ini"
+    try
+    (
+        local xText = getINISetting settingsPath "Window" "X"
+        local yText = getINISetting settingsPath "Window" "Y"
+        if xText != "" and yText != "" do positionValue = [xText as integer,yText as integer]
+    )
+    catch()
+    positionValue
+)
+
+fn MayaQuadDrawUI_SavePosition =
+(
+    if MayaQuadDrawUIPosition == undefined then false
+    else
+    (
+        local settingsPath = (getDir #plugcfg) + "\\MayaQuadDraw_Max2024_UI.ini"
+        try
+        (
+            setINISetting settingsPath "Window" "X" ((MayaQuadDrawUIPosition.x as integer) as string)
+            setINISetting settingsPath "Window" "Y" ((MayaQuadDrawUIPosition.y as integer) as string)
+            true
+        )
+        catch (false)
+    )
+)
+
+fn MayaQuadDrawUI_IsOpen =
+(
+    try (MayaQuadDrawUIFloater != undefined and MayaQuadDrawUIFloater.open) catch (false)
+)
+
+if MayaQuadDrawUIPosition == undefined do MayaQuadDrawUIPosition = MayaQuadDrawUI_ReadPosition()
+
 rollout MayaQuadDrawUIRollout "参数" width:196 height:118
 (
     spinner radiusSpinner "松弛半径:" range:[1.0,500.0,20.0] type:#float scale:0.5 fieldWidth:70 pos:[10,8]
@@ -149,11 +192,19 @@ rollout MayaQuadDrawUIRollout "参数" width:196 height:118
     on strengthSpinner changed value do if not MayaQuadDrawUIState.suppressEvents do MayaQuadDrawUIState.relaxStrength = value
     on weldSpinner changed value do if not MayaQuadDrawUIState.suppressEvents do MayaQuadDrawUIState.writeNativeWeldDistance value
     on nativeSyncTimer tick do MayaQuadDrawUIState.syncWeldFromNative spinnerControl:weldSpinner
-    on MayaQuadDrawUIRollout close do nativeSyncTimer.active = false
+    on MayaQuadDrawUIRollout moved positionValue do MayaQuadDrawUIPosition = positionValue
+    on MayaQuadDrawUIRollout close do
+    (
+        nativeSyncTimer.active = false
+        MayaQuadDrawUI_SavePosition()
+        MayaQuadDrawUIFloater = undefined
+    )
 )
 
 fn MayaQuadDrawUI_Close =
 (
+    if MayaQuadDrawUI_IsOpen() do try (MayaQuadDrawUIPosition = MayaQuadDrawUIFloater.pos) catch()
+    MayaQuadDrawUI_SavePosition()
     try (if MayaQuadDrawUIFloater != undefined and MayaQuadDrawUIFloater.dialogBar do cui.UnRegisterDialogBar MayaQuadDrawUIFloater) catch()
     try (if MayaQuadDrawUIFloater != undefined do closeRolloutFloater MayaQuadDrawUIFloater) catch()
     MayaQuadDrawUIFloater = undefined
@@ -162,14 +213,21 @@ fn MayaQuadDrawUI_Close =
 
 fn MayaQuadDrawUI_Open =
 (
-    if MayaQuadDrawUIFloater == undefined then
+    if not MayaQuadDrawUI_IsOpen() then
     (
-        MayaQuadDrawUIFloater = newRolloutFloater "MQD 四边形设置" 202 148
+        local windowPos = MayaQuadDrawUIPosition
+        -- Explicit top/left avoids Max's centered default. Max also brings
+        -- off-screen floaters back into view after monitor-layout changes.
+        MayaQuadDrawUIFloater = newRolloutFloater "MQD 参数设置" 202 148 (windowPos.y as integer) (windowPos.x as integer)
         addRollout MayaQuadDrawUIRollout MayaQuadDrawUIFloater
-        cui.RegisterDialogBar MayaQuadDrawUIFloater style:#(#cui_floatable, #cui_dock_vert, #cui_handles) minSize:[202,148] maxSize:[202,148]
-        try (cui.FloatDialogBar MayaQuadDrawUIFloater) catch()
+        MayaQuadDrawUIPosition = MayaQuadDrawUIFloater.pos
     )
     true
+)
+
+fn MayaQuadDrawUI_Toggle =
+(
+    if MayaQuadDrawUI_IsOpen() then MayaQuadDrawUI_Close() else MayaQuadDrawUI_Open()
 )
 
 struct MayaQuadDrawR6State
@@ -1818,7 +1876,7 @@ struct MayaQuadDrawR6State
                 PBStartTrack trackFn
                 trackerExpected = true
                 appendLog ("tracker.active=" + (PBTrackGetToolActive() as string))
-                try (MayaQuadDrawUI_Open()) catch (appendLog ("settings.ui.exception=" + getCurrentException()))
+                -- Settings are opened explicitly through the MQD Settings action.
                 completeRedraw()
                     format "MQD 1.0 is active. Shift-drag over an internal component runs continuous Relax.\n"
                 true

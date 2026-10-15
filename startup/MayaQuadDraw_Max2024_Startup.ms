@@ -7,6 +7,7 @@ global MayaQuadDraw_Load
 global MayaQuadDraw_Start
 global MayaQuadDraw_Stop
 global MayaQuadDraw_Toggle
+global MayaQuadDraw_Settings
 
 MayaQuadDrawRootPath = (getDir #userScripts) + "\\MayaQuadDraw_Max2024\\"
 
@@ -20,7 +21,7 @@ fn MayaQuadDraw_Load =
     )
     else
     (
-        local alreadyLoaded = try (MayaQuadDrawInstalledRuntimeVersion == "1.0.0-max2024-v20") catch (false)
+        local alreadyLoaded = try (MayaQuadDrawInstalledRuntimeVersion == "1.0.0-max2024-v20-ui1") catch (false)
         if alreadyLoaded then true
         else
         (
@@ -105,6 +106,12 @@ fn MayaQuadDraw_Toggle =
     global MayaQuadDrawR6
     local isActive = try (MayaQuadDrawR6 != undefined and MayaQuadDrawR6.active) catch (false)
     if isActive then MayaQuadDraw_Stop() else MayaQuadDraw_Start()
+)
+
+fn MayaQuadDraw_Settings =
+(
+    global MayaQuadDrawUI_Toggle
+    if MayaQuadDraw_Load() then MayaQuadDrawUI_Toggle() else false
 )
 
 format "MQD Max 2024 action loader is ready.\n"
